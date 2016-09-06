@@ -126,6 +126,8 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_follow_target_pub(nullptr),
 	_transponder_report_pub(nullptr),
 	_gps_inject_data_pub(nullptr),
+	_endeff_frame_pub(nullptr),
+	_manipulator_joint_status_pub(nullptr),
 	_control_mode_sub(orb_subscribe(ORB_ID(vehicle_control_mode))),
 	_hil_frames(0),
 	_old_timestamp(0),
@@ -152,6 +154,45 @@ MavlinkReceiver::~MavlinkReceiver()
 }
 
 void
+MavlinkReceiver::handle_message_endeff_frame(mavlink_message_t *msg)
+{
+	mavlink_endeff_frame_t endeff_frame_data;
+	mavlink_msg_endeff_frame_decode(msg, &endeff_frame_data);
+
+   struct endeff_frame_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.x = endeff_frame_data.x;
+
+    if (_endeff_frame_pub == nullptr) {
+    	_endeff_frame_pub = orb_advertise(ORB_ID(endeff_frame), &f);
+
+    } else {
+        orb_publish(ORB_ID(endeff_frame), _endeff_frame_pub, &f);
+    }
+}
+void
+MavlinkReceiver::handle_message_manipulator_joint_status(mavlink_message_t *msg)
+{
+	mavlink_manipulator_joint_status_t manipulator_joint_status_data;
+	mavlink_msg_manipulator_joint_status_decode(msg, &manipulator_joint_status_data);
+
+   struct manipulator_joint_status_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.torque_1 = manipulator_joint_status_data.torque_1;
+
+    if (_manipulator_joint_status_pub == nullptr) {
+    	_manipulator_joint_status_pub = orb_advertise(ORB_ID(manipulator_joint_status), &f);
+
+    } else {
+        orb_publish(ORB_ID(manipulator_joint_status), _manipulator_joint_status_pub, &f);
+    }
+}
+
+void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
 	if (!_mavlink->get_config_link_on()) {
@@ -174,6 +215,13 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		}
 
 		break;
+	case MAVLINK_MSG_ID_ENDEFF_FRAME:
+			handle_message_endeff_frame(msg);
+			break;
+
+	case MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS:
+			handle_message_manipulator_joint_status(msg);
+			break;
 
 	case MAVLINK_MSG_ID_OPTICAL_FLOW_RAD:
 		handle_message_optical_flow_rad(msg);

@@ -1,0 +1,52 @@
+<?xml version='1.0'?>
+<mavlink>
+    <include>common.xml</include>
+    <version>3</version>
+    <enums>
+    </enums>
+    <messages>
+        <!-- Messages specifically designated for the UAV_mani_epsilon300 autopilot -->
+        <message id="180" name="ENDEFF_FRAME">
+            <description>Position and attitude of end-effector of manipulator epsilon300 </description>
+            <field type="char" name="arm_enable">enable robotic arm  0 disenable, 1 enable</field>
+            <field type="int8_t" name="gripper_status">status of girpper 1 open, 0 closing, -1 closed</field>
+            <field type="float" name="gripper_posi">Position of girpper in rad</field>
+            <field type="float" name="x">X Position in NED frame in meters</field>
+	    <field type="float" name="y">Y Position in NED frame in meters</field>
+	    <field type="float" name="z">Z Position in NED frame in meters</field>
+	    <field type="float" name="roll">roll in rad</field>
+	    <field type="float" name="pitch">pitch in rad</field>
+	    <field type="float" name="yaw">yaw in rad</field>
+	    <field type="float" name="vx">X velocity in NED frame in meter/s</field>
+	    <field type="float" name="vy">Y velocity in NED frame in meter/s</field>
+	    <field type="float" name="vz">Z velocity in NED frame in meter/s</field>
+	    <field type="float" name="roll_rate">roll rate in rad/s</field>
+	    <field type="float" name="pitch_rate">pitch rate in rad/s</field>
+	    <field type="float" name="yaw_rate">yaw rate in rad/s</field>
+        </message>
+        <message id="181" name="MANIPULATOR_JOINT_STATUS">
+            <description>Joint status of manipulator epsilon300 </description>
+            <field type="float" name="joint_posi_1">Position of jiont 1 in rad</field>
+            <field type="float" name="joint_posi_2">Position of jiont 2 in rad</field>
+            <field type="float" name="joint_posi_3">Position of jiont 3 in rad</field>
+            <field type="float" name="joint_posi_4">Position of jiont 4 in rad</field>
+            <field type="float" name="joint_posi_5">Position of jiont 5 in rad</field>
+            <field type="float" name="joint_posi_6">Position of jiont 6 in rad</field>
+            <field type="float" name="joint_posi_7">Position of jiont 7 in rad</field>
+            <field type="float" name="joint_rate_1">Rate of jiont 1 in rad/s</field>
+            <field type="float" name="joint_rate_2">Rate of jiont 2 in rad/s</field>
+            <field type="float" name="joint_rate_3">Rate of jiont 3 in rad/s</field>
+            <field type="float" name="joint_rate_4">Rate of jiont 4 in rad/s</field>
+            <field type="float" name="joint_rate_5">Rate of jiont 5 in rad/s</field>
+            <field type="float" name="joint_rate_6">Rate of jiont 6 in rad/s</field>
+            <field type="float" name="joint_rate_7">Rate of jiont 7 in rad/s</field>
+            <field type="float" name="torque_1">torque of jiont 1 in N*m</field>
+            <field type="float" name="torque_2">torque of jiont 2 in N*m</field>
+            <field type="float" name="torque_3">torque of jiont 3 in N*m</field>
+            <field type="float" name="torque_4">torque of jiont 4 in N*m</field>
+            <field type="float" name="torque_5">torque of jiont 5 in N*m</field>
+            <field type="float" name="torque_6">torque of jiont 6 in N*m</field>
+            <field type="float" name="torque_7">torque of jiont 7 in N*m</field>                     
+      </message>
+    </messages>
+</mavlink>

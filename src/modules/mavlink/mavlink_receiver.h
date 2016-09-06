@@ -41,6 +41,14 @@
 
 #pragma once
 
+#include <uORB/topics/manipulator_joint_status.h>
+#include <uORB/topics/endeff_frame.h>
+//
+//
+//#include <v1.0/UAV_mani/mavlink.h>
+//#include <v2.0/UAV_mani/mavlink_msg_endeff_frame.h>
+//#include <v2.0/UAV_mani/mavlink_msg_manipulator_joint_status.h>
+
 #include <systemlib/perf_counter.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
@@ -145,6 +153,9 @@ private:
 	void handle_message_battery_status(mavlink_message_t *msg);
 	void handle_message_serial_control(mavlink_message_t *msg);
 
+	void handle_message_endeff_frame(mavlink_message_t *msg);
+	void handle_message_manipulator_joint_status(mavlink_message_t *msg);
+
 	void *receive_thread(void *arg);
 
 	/**
@@ -220,6 +231,8 @@ private:
 	orb_advert_t _transponder_report_pub;
 	static const int _gps_inject_data_queue_size = 6;
 	orb_advert_t _gps_inject_data_pub;
+	orb_advert_t _endeff_frame_pub;
+	orb_advert_t _manipulator_joint_status_pub;
 	int _control_mode_sub;
 	int _hil_frames;
 	uint64_t _old_timestamp;

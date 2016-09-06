@@ -54,6 +54,14 @@
 #include <systemlib/err.h>
 #include <systemlib/mavlink_log.h>
 
+#include <uORB/topics/manipulator_joint_status.h>
+#include <uORB/topics/endeff_frame.h>
+//
+//
+//#include <v1.0/UAV_mani/mavlink.h>
+//#include <v2.0/UAV_mani/mavlink_msg_endeff_frame.h>
+//#include <v2.0/UAV_mani/mavlink_msg_manipulator_joint_status.h>
+
 #include <uORB/topics/actuator_armed.h>
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/actuator_outputs.h>
@@ -334,6 +342,122 @@ protected:
 					   base_mode, custom_mode, system_status);
 	}
 };
+
+
+class MavlinkStreamEndeffFrame : public MavlinkStream
+{
+public:
+   const char *get_name() const
+    {
+        return MavlinkStreamEndeffFrame::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "ENDEFF_FRAME";
+    }
+	static uint8_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_ENDEFF_FRAME;
+	}
+    uint8_t get_id()
+    {
+       return MAVLINK_MSG_ID_ENDEFF_FRAME;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamEndeffFrame(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_ENDEFF_FRAME_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamEndeffFrame(MavlinkStreamEndeffFrame &);
+    MavlinkStreamEndeffFrame& operator = (const MavlinkStreamEndeffFrame &);
+
+protected:
+    explicit MavlinkStreamEndeffFrame(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(endeff_frame))),  // make sure you enter the name of your uorb topic here
+        _time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct endeff_frame_s _data;    //make sure ca_traj_struct_s is the definition of your uorb topic
+
+       if (_sub->update(&_time, &_data)) {
+        	mavlink_endeff_frame_t _msg_data;  //make sure mavlink_ca_trajectory_t is the definition of your custom mavlink message
+
+       	//_msg_data.timestamp = hrt_absolute_time();
+        //	_msg_data.test 		= _data.test;
+
+        	mavlink_msg_endeff_frame_send_struct(_mavlink->get_channel(), &_msg_data);
+        }
+    }
+};
+
+class MavlinkStreamManipulatorJointStatus : public MavlinkStream
+{
+public:
+   const char *get_name() const
+    {
+        return MavlinkStreamManipulatorJointStatus::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "MANIPULATOR_JOINT_STATUS";
+    }
+	static uint8_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS;
+	}
+    uint8_t get_id()
+    {
+       return MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamManipulatorJointStatus(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamManipulatorJointStatus(MavlinkStreamManipulatorJointStatus &);
+    MavlinkStreamManipulatorJointStatus& operator = (const MavlinkStreamManipulatorJointStatus &);
+
+protected:
+    explicit MavlinkStreamManipulatorJointStatus(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(manipulator_joint_status))),  // make sure you enter the name of your uorb topic here
+        _time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct manipulator_joint_status_s _data;    //make sure ca_traj_struct_s is the definition of your uorb topic
+
+       if (_sub->update(&_time, &_data)) {
+        	mavlink_manipulator_joint_status_t _msg_data;  //make sure mavlink_ca_trajectory_t is the definition of your custom mavlink message
+
+       	//_msg_data.timestamp = hrt_absolute_time();
+        //	_msg_data.test 		= _data.test;
+
+        	mavlink_msg_manipulator_joint_status_send_struct(_mavlink->get_channel(), &_msg_data);
+        }
+    }
+};
+
 
 class MavlinkStreamStatustext : public MavlinkStream
 {
@@ -3266,6 +3390,10 @@ protected:
 };
 
 const StreamListItem *streams_list[] = {
+
+	new StreamListItem(&MavlinkStreamEndeffFrame::new_instance, &MavlinkStreamEndeffFrame::get_name_static, &MavlinkStreamEndeffFrame::get_id_static),
+	new StreamListItem(&MavlinkStreamManipulatorJointStatus::new_instance, &MavlinkStreamManipulatorJointStatus::get_name_static, &MavlinkStreamManipulatorJointStatus::get_id_static),
+
 	new StreamListItem(&MavlinkStreamHeartbeat::new_instance, &MavlinkStreamHeartbeat::get_name_static, &MavlinkStreamHeartbeat::get_id_static),
 	new StreamListItem(&MavlinkStreamStatustext::new_instance, &MavlinkStreamStatustext::get_name_static, &MavlinkStreamStatustext::get_id_static),
 	new StreamListItem(&MavlinkStreamCommandLong::new_instance, &MavlinkStreamCommandLong::get_name_static, &MavlinkStreamCommandLong::get_id_static),
