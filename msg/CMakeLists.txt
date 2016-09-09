@@ -120,7 +120,8 @@ set(msg_file_names
 	wind_estimate.msg
 	
 	manipulator_joint_status.msg
-	endeff_frame.msg
+	target_endeff_frame.msg
+	endeff_frame_status.msg
 	)
 
 # Get absolute paths

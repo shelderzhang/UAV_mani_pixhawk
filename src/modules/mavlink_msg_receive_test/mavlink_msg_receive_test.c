@@ -50,7 +50,8 @@
 
 #include <uORB/uORB.h>
 #include <uORB/topics/manipulator_joint_status.h>
-#include <uORB/topics/endeff_frame.h>
+#include <uORB/topics/target_endeff_frame.h>
+#include <uORB/topics/endeff_frame_status.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
@@ -145,36 +146,43 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 	thread_running = true;
 
 	/* subscribe to sensor_combined topic */
-	int sub_fd = orb_subscribe(ORB_ID(endeff_frame));
+	int sub_fd = orb_subscribe(ORB_ID(target_endeff_frame));
 	//manipulator_joint_status
 	int sub_fd1 = orb_subscribe(ORB_ID(manipulator_joint_status));
 	//orb_set_interval(sub_fd, 100);
-
+	int sub_fd2 = orb_subscribe(ORB_ID(endeff_frame_status));
 	px4_pollfd_struct_t fds[1];
 	px4_pollfd_struct_t fdy[1];
+	px4_pollfd_struct_t fdz[1];
 	fds[0].fd     = sub_fd;
 	fdy[0].fd     = sub_fd1;
+	fdy[0].fd     = sub_fd2;
 	fds[0].events = POLLIN;
 	fdy[0].events = POLLIN;
+	fdz[0].events = POLLIN;
 
 	while (!thread_should_exit) {
 		int poll_ret = px4_poll(fds, 1, 100);
 		int poll_ret1 = px4_poll(fdy, 1, 100);
-		if((poll_ret < 0) & (poll_ret1 < 0))
+		int poll_ret2 = px4_poll(fdz, 1, 100);
+		if((poll_ret < 0) & (poll_ret1 < 0)& (poll_ret2 < 0))
 		{
 			continue;
 		}
-		if((poll_ret == 0) & (poll_ret1 == 0))
+		if((poll_ret == 0) & (poll_ret1 == 0)& (poll_ret2 == 0))
 		{
 			continue;
 		}
-		if (fds[0].revents & POLLIN & fdy[0].revents) {
-			struct endeff_frame_s data;
-			orb_copy(ORB_ID(endeff_frame), sub_fd, &data);
-			PX4_WARN("[mavlink_msg_receive] X Position in NED frame in meters:\t%8.4f\n", (double)data.x);
+		if (fds[0].revents & POLLIN & fdy[0].revents ) {
+			struct target_endeff_frame_s data;
+			orb_copy(ORB_ID(target_endeff_frame), sub_fd, &data);
+			PX4_WARN("[mavlink_msg_receive] X Y Z Position in NED frame in meters:\t%8.4f \t%8.4f \t%8.4f", (double)data.x, (double)data.y, (double)data.z);
 			struct manipulator_joint_status_s data1;
 			orb_copy(ORB_ID(manipulator_joint_status), sub_fd1, &data1);
-			PX4_WARN("[mavlink_msg_receive] Position of joint 3 in pi :\t%8.4f\n", (double)data1.joint_rate_3);
+			PX4_WARN("[mavlink_msg_receive] Position of joints in pi :\t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f\n", (double)data1.joint_rate_1, (double)data1.joint_rate_2, (double)data1.joint_rate_3, (double)data1.joint_rate_4, (double)data1.joint_rate_5, (double)data1.joint_rate_6, (double)data1.joint_rate_7);
+			struct endeff_frame_status_s data2;
+		    orb_copy(ORB_ID(endeff_frame_status), sub_fd2, &data2);
+		    PX4_WARN("[mavlink_msg_receive] X Y Z Position in NED frame in meters:\t%8.4f \t%8.4f \t%8.4f\n", (double)data2.x, (double)data2.y, (double)data2.z);
 		}
 	}
 

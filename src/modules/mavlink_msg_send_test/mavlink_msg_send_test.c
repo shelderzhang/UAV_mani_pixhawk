@@ -50,7 +50,8 @@
 
 #include <uORB/uORB.h>
 #include <uORB/topics/manipulator_joint_status.h>
-#include <uORB/topics/endeff_frame.h>
+#include <uORB/topics/target_endeff_frame.h>
+#include <uORB/topics/endeff_frame_status.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
@@ -144,20 +145,36 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 
 	//
 	thread_running = true;
-	struct endeff_frame_s mavros_data;
+	struct target_endeff_frame_s mavros_data;
 	//manipulator_joint_status
 	struct manipulator_joint_status_s mavros_data1;
+	struct endeff_frame_status_s mavros_data2;
 	memset(&mavros_data , 0, sizeof(mavros_data));
 	memset(&mavros_data1 , 0, sizeof(mavros_data1));
-	orb_advert_t endeff_frame_pub = orb_advertise(ORB_ID(endeff_frame), &mavros_data);
+	memset(&mavros_data2 , 0, sizeof(mavros_data2));
+	orb_advert_t target_endeff_frame_pub = orb_advertise(ORB_ID(target_endeff_frame), &mavros_data);
 	orb_advert_t manipulator_joint_status_pub = orb_advertise(ORB_ID(manipulator_joint_status), &mavros_data1);
+	orb_advert_t endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &mavros_data2);
 	while (!thread_should_exit) {
 		mavros_data.timestamp = hrt_absolute_time();
 		mavros_data.x = 2.0f;
-		orb_publish(ORB_ID(endeff_frame), endeff_frame_pub, &mavros_data);
+		mavros_data.y = 2.0f;
+		mavros_data.z = 2.0f;
+		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
 		mavros_data1.timestamp = hrt_absolute_time();
+		mavros_data1.joint_rate_1 = 2.0f;
+		mavros_data1.joint_rate_2 = 2.0f;
+		mavros_data1.joint_rate_3 = 2.0f;
+		mavros_data1.joint_rate_4 = 2.0f;
+		mavros_data1.joint_rate_5 = 2.0f;
 		mavros_data1.joint_rate_6 = 2.0f;
+		mavros_data1.joint_rate_7 = 2.0f;
 		orb_publish(ORB_ID(manipulator_joint_status), manipulator_joint_status_pub, &mavros_data1);
+		mavros_data2.timestamp = hrt_absolute_time();
+		mavros_data2.x = 2.0f;
+		mavros_data2.y = 2.0f;
+		mavros_data2.z = 2.0f;
+	    orb_publish(ORB_ID(endeff_frame_status), endeff_frame_status_pub, &mavros_data2);
 		PX4_WARN("[mavlink_msg_send] Success!");
 		sleep(10);
 	}

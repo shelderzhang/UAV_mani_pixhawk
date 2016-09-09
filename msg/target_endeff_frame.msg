@@ -1,5 +1,4 @@
 uint8 arm_enable  # enable robotic arm  0 disenable, 1 enable  
-int8 gripper_status # status of girpper 1 open, 0 closing, -1 closed   
 float32 x   # X Position in NED frame in meters  
 float32 y   # Y Position in NED frame in meters  
 float32 z  # Z Position in NED frame in meters (note, altitude is negative in NED)  
