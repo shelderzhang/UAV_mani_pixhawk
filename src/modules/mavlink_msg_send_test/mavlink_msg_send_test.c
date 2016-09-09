@@ -156,7 +156,7 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 		mavros_data.x = 2.0f;
 		orb_publish(ORB_ID(endeff_frame), endeff_frame_pub, &mavros_data);
 		mavros_data1.timestamp = hrt_absolute_time();
-		mavros_data1.thetadot_6 = 2.0f;
+		mavros_data1.joint_rate_6 = 2.0f;
 		orb_publish(ORB_ID(manipulator_joint_status), manipulator_joint_status_pub, &mavros_data1);
 		PX4_WARN("[mavlink_msg_send] Success!");
 		sleep(10);

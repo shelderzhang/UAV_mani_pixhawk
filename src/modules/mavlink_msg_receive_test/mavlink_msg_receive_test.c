@@ -174,7 +174,7 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 			PX4_WARN("[mavlink_msg_receive] X Position in NED frame in meters:\t%8.4f\n", (double)data.x);
 			struct manipulator_joint_status_s data1;
 			orb_copy(ORB_ID(manipulator_joint_status), sub_fd1, &data1);
-			PX4_WARN("[mavlink_msg_receive] Position of joint 3 in pi :\t%8.4f\n", (double)data1.theta_3);
+			PX4_WARN("[mavlink_msg_receive] Position of joint 3 in pi :\t%8.4f\n", (double)data1.joint_rate_3);
 		}
 	}
 

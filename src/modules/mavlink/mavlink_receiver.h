@@ -43,11 +43,7 @@
 
 #include <uORB/topics/manipulator_joint_status.h>
 #include <uORB/topics/endeff_frame.h>
-//
-//
-//#include <v1.0/UAV_mani/mavlink.h>
-//#include <v2.0/UAV_mani/mavlink_msg_endeff_frame.h>
-//#include <v2.0/UAV_mani/mavlink_msg_manipulator_joint_status.h>
+
 
 #include <systemlib/perf_counter.h>
 #include <uORB/uORB.h>
