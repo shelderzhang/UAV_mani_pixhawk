@@ -32,21 +32,21 @@
  ****************************************************************************/
 
 /**
- * @file mavlink_msg_send_test.c
- * mavlink_msg_send application example for PX4 autopilot
+ * @file mavlink_msg_receive_test.c
+ * mavlink_msg_receive application example for PX4 autopilot
  *
  * @author Example User <mail@example.com>
  */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
 #include <px4_config.h>
+#include <px4_tasks.h>
+#include <px4_posix.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <poll.h>
+#include <string.h>
+
+#include <stdlib.h>
 #include <nuttx/sched.h>
-#include <drivers/drv_hrt.h>
-#include <arch/board/board.h>
 
 #include <uORB/uORB.h>
 #include <uORB/topics/manipulator_joint_status.h>
@@ -56,19 +56,19 @@
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 
-static bool thread_should_exit = false;		/**< mavlink_msg_send exit flag */
-static bool thread_running = false;			/**< mavlink_msg_send status flag */
-static int mavlink_msg_send_task;			/**< Handle of mavlink_msg_send task / thread */
+static bool thread_should_exit = false;		/**< mavlink_msg_receive exit flag */
+static bool thread_running = false;			/**< mavlink_msg_receive status flag */
+static int mavlink_msg_receive_task;			/**< Handle of mavlink_msg_receive task / thread */
 
 /**
- * mavlink_msg_send management function.
+ * mavlink_msg_receive management function.
  */
-__EXPORT int mavlink_msg_send_test_main(int argc, char *argv[]);
+__EXPORT int mavlink_msg_receive_test_main(int argc, char *argv[]);
 
 /**
- * Mainloop of mavlink_msg_send.
+ * Mainloop of mavlink_msg_receive.
  */
-int mavlink_msg_send_thread_main(int argc, char *argv[]);
+int mavlink_msg_receive_thread_main(int argc, char *argv[]);
 
 /**
  * Print the correct usage.
@@ -82,18 +82,18 @@ usage(const char *reason)
 		warnx("%s\n", reason);
 	}
 
-	warnx("usage: mavlink_msg_send {start|stop|status} [-p <additional params>]\n\n");
+	warnx("usage: mavlink_msg_receive {start|stop|status} [-p <additional params>]\n\n");
 }
 
 /**
- * The mavlink_msg_send app only briefly exists to start
+ * The mavlink_msg_receive app only briefly exists to start
  * the background job. The stack size assigned in the
  * Makefile does only apply to this management task.
  *
  * The actual stack size should be set in the call
  * to task_create().
  */
-int mavlink_msg_send_test_main(int argc, char *argv[])
+int mavlink_msg_receive_test_main(int argc, char *argv[])
 {
 	if (argc < 2) {
 		usage("missing command");
@@ -103,17 +103,17 @@ int mavlink_msg_send_test_main(int argc, char *argv[])
 	if (!strcmp(argv[1], "start")) {
 
 		if (thread_running) {
-			warnx("mavlink_msg_send already running\n");
+			warnx("mavlink_msg_receive already running\n");
 			/* this is not an error */
 			return 0;
 		}
 
 		thread_should_exit = false;
-		mavlink_msg_send_task = px4_task_spawn_cmd("mavlink_msg_send",
+		mavlink_msg_receive_task = px4_task_spawn_cmd("mavlink_msg_receive",
 						 SCHED_DEFAULT,
 						 SCHED_PRIORITY_DEFAULT,
 						 2000,
-						 mavlink_msg_send_thread_main,
+						 mavlink_msg_receive_thread_main,
 						 (argv) ? (char *const *)&argv[2] : (char *const *)NULL);
 		return 0;
 	}
@@ -138,50 +138,59 @@ int mavlink_msg_send_test_main(int argc, char *argv[])
 	return 1;
 }
 
-int mavlink_msg_send_thread_main(int argc, char *argv[])
+int mavlink_msg_receive_thread_main(int argc, char *argv[])
 {
 
-	warnx("[mavlink_msg_send] starting\n");
+	warnx("[mavlink_msg_receive] starting\n");
 
-	//
 	thread_running = true;
-	struct target_endeff_frame_s mavros_data;
+
+	/* subscribe to sensor_combined topic */
+	int sub_fd = orb_subscribe(ORB_ID(target_endeff_frame));
 	//manipulator_joint_status
-	struct manipulator_joint_status_s mavros_data1;
-	struct endeff_frame_status_s mavros_data2;
-	memset(&mavros_data , 0, sizeof(mavros_data));
-	memset(&mavros_data1 , 0, sizeof(mavros_data1));
-	memset(&mavros_data2 , 0, sizeof(mavros_data2));
-	orb_advert_t target_endeff_frame_pub = orb_advertise(ORB_ID(target_endeff_frame), &mavros_data);
-	orb_advert_t manipulator_joint_status_pub = orb_advertise(ORB_ID(manipulator_joint_status), &mavros_data1);
-	orb_advert_t endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &mavros_data2);
+	int sub_fd1 = orb_subscribe(ORB_ID(manipulator_joint_status));
+	//orb_set_interval(sub_fd, 100);
+	int sub_fd2 = orb_subscribe(ORB_ID(endeff_frame_status));
+	px4_pollfd_struct_t fds[1];
+	px4_pollfd_struct_t fdy[1];
+	px4_pollfd_struct_t fdz[1];
+	fds[0].fd     = sub_fd;
+	fdy[0].fd     = sub_fd1;
+	fdy[0].fd     = sub_fd2;
+	fds[0].events = POLLIN;
+	fdy[0].events = POLLIN;
+	fdz[0].events = POLLIN;
+
 	while (!thread_should_exit) {
-		mavros_data.timestamp = hrt_absolute_time();
-		mavros_data.x = 10.0f;
-		mavros_data.y = 12.0f;
-		mavros_data.z = 11.0f;
-		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
-		mavros_data1.timestamp = hrt_absolute_time();
-		mavros_data1.joint_rate_1 = 1.0f;
-		mavros_data1.joint_rate_2 = 2.0f;
-		mavros_data1.joint_rate_3 = 3.0f;
-		mavros_data1.joint_rate_4 = 4.0f;
-		mavros_data1.joint_rate_5 = 5.0f;
-		mavros_data1.joint_rate_6 = 6.0f;
-		mavros_data1.joint_rate_7 = 7.0f;
-		orb_publish(ORB_ID(manipulator_joint_status), manipulator_joint_status_pub, &mavros_data1);
-		mavros_data2.timestamp = hrt_absolute_time();
-		mavros_data2.x = 1.0f;
-		mavros_data2.y = 2.0f;
-		mavros_data2.z = 3.0f;
-	    orb_publish(ORB_ID(endeff_frame_status), endeff_frame_status_pub, &mavros_data2);
-		PX4_WARN("[mavlink_msg_send] Success!");
-		sleep(10);
+		int poll_ret = px4_poll(fds, 1, 100);
+		int poll_ret1 = px4_poll(fdy, 1, 100);
+		int poll_ret2 = px4_poll(fdz, 1, 100);
+		if((poll_ret < 0) & (poll_ret1 < 0)& (poll_ret2 < 0))
+		{
+			continue;
+		}
+		if((poll_ret == 0) & (poll_ret1 == 0)& (poll_ret2 == 0))
+		{
+			continue;
+		}
+		if (fds[0].revents & POLLIN & fdy[0].revents ) {
+			struct target_endeff_frame_s data;
+			orb_copy(ORB_ID(target_endeff_frame), sub_fd, &data);
+			PX4_WARN("[mavlink_msg_receive] X Y Z Position in NED frame in meters:\t%8.4f \t%8.4f \t%8.4f", (double)data.x, (double)data.y, (double)data.z);
+			struct manipulator_joint_status_s data1;
+			orb_copy(ORB_ID(manipulator_joint_status), sub_fd1, &data1);
+			PX4_WARN("[mavlink_msg_receive] Position of joints in pi :\t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f\n", (double)data1.joint_rate_1, (double)data1.joint_rate_2, (double)data1.joint_rate_3, (double)data1.joint_rate_4, (double)data1.joint_rate_5, (double)data1.joint_rate_6, (double)data1.joint_rate_7);
+			struct endeff_frame_status_s data2;
+		    orb_copy(ORB_ID(endeff_frame_status), sub_fd2, &data2);
+		    PX4_WARN("[mavlink_msg_receive] X Y Z Position in NED frame in meters:\t%8.4f \t%8.4f \t%8.4f\n", (double)data2.x, (double)data2.y, (double)data2.z);
+		}
 	}
 
-	warnx("[mavlink_msg_send] exiting.\n");
+	warnx("[mavlink_msg_receive] exiting.\n");
 
 	thread_running = false;
 
 	return 0;
 }
+
+

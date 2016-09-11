@@ -110,11 +110,11 @@ int mavlink_msg_receive_test_main(int argc, char *argv[])
 
 		thread_should_exit = false;
 		mavlink_msg_receive_task = px4_task_spawn_cmd("mavlink_msg_receive",
-						 SCHED_DEFAULT,
-						 SCHED_PRIORITY_DEFAULT,
-						 2000,
-						 mavlink_msg_receive_thread_main,
-						 (argv) ? (char *const *)&argv[2] : (char *const *)NULL);
+				SCHED_DEFAULT,
+				SCHED_PRIORITY_DEFAULT,
+				2000,
+				mavlink_msg_receive_thread_main,
+				(argv) ? (char *const *)&argv[2] : (char *const *)NULL);
 		return 0;
 	}
 
@@ -146,51 +146,68 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 	thread_running = true;
 
 	/* subscribe to sensor_combined topic */
-	int sub_fd = orb_subscribe(ORB_ID(target_endeff_frame));
-	//manipulator_joint_status
-	int sub_fd1 = orb_subscribe(ORB_ID(manipulator_joint_status));
-	//orb_set_interval(sub_fd, 100);
-	int sub_fd2 = orb_subscribe(ORB_ID(endeff_frame_status));
-	px4_pollfd_struct_t fds[1];
-	px4_pollfd_struct_t fdy[1];
-	px4_pollfd_struct_t fdz[1];
-	fds[0].fd     = sub_fd;
-	fdy[0].fd     = sub_fd1;
-	fdy[0].fd     = sub_fd2;
-	fds[0].events = POLLIN;
-	fdy[0].events = POLLIN;
-	fdz[0].events = POLLIN;
+	int target_endeff_frame_sub_fd = orb_subscribe(ORB_ID(target_endeff_frame));
+
+
+	int manipulator_joint_status_sub_fd = orb_subscribe(ORB_ID(manipulator_joint_status));
+	int endeff_frame_status_sub_fd = orb_subscribe(ORB_ID(endeff_frame_status));
+	orb_set_interval(target_endeff_frame_sub_fd, 100);
+	orb_set_interval(manipulator_joint_status_sub_fd, 100);
+	orb_set_interval(endeff_frame_status_sub_fd, 100);
+
+	struct pollfd fds[3] = {
+			{ .fd = target_endeff_frame_sub_fd,   .events = POLLIN },
+			{ .fd = manipulator_joint_status_sub_fd,   .events = POLLIN },
+			{ .fd = endeff_frame_status_sub_fd,   .events = POLLIN },
+	};
+	int error_counter = 0;
+
 
 	while (!thread_should_exit) {
-		int poll_ret = px4_poll(fds, 1, 100);
-		int poll_ret1 = px4_poll(fdy, 1, 100);
-		int poll_ret2 = px4_poll(fdz, 1, 100);
-		if((poll_ret < 0) & (poll_ret1 < 0)& (poll_ret2 < 0))
+		int poll_ret = px4_poll(fds, 3, 1000);
+		if (poll_ret == 0)
 		{
-			continue;
+			printf("[mavlink_msg_receive] Got no data within one second\n");
 		}
-		if((poll_ret == 0) & (poll_ret1 == 0)& (poll_ret2 == 0))
+		else if (poll_ret < 0)
 		{
-			continue;
+			if (error_counter < 10 || error_counter % 50 == 0)
+			{
+				printf("[mavlink_msg_receive] ERROR return value from poll(): %d\n", poll_ret);
+			}
+			error_counter++;
 		}
-		if (fds[0].revents & POLLIN & fdy[0].revents ) {
-			struct target_endeff_frame_s data;
-			orb_copy(ORB_ID(target_endeff_frame), sub_fd, &data);
-			PX4_WARN("[mavlink_msg_receive] X Y Z Position in NED frame in meters:\t%8.4f \t%8.4f \t%8.4f", (double)data.x, (double)data.y, (double)data.z);
-			struct manipulator_joint_status_s data1;
-			orb_copy(ORB_ID(manipulator_joint_status), sub_fd1, &data1);
-			PX4_WARN("[mavlink_msg_receive] Position of joints in pi :\t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f \t%8.4f\n", (double)data1.joint_rate_1, (double)data1.joint_rate_2, (double)data1.joint_rate_3, (double)data1.joint_rate_4, (double)data1.joint_rate_5, (double)data1.joint_rate_6, (double)data1.joint_rate_7);
-			struct endeff_frame_status_s data2;
-		    orb_copy(ORB_ID(endeff_frame_status), sub_fd2, &data2);
-		    PX4_WARN("[mavlink_msg_receive] X Y Z Position in NED frame in meters:\t%8.4f \t%8.4f \t%8.4f\n", (double)data2.x, (double)data2.y, (double)data2.z);
+		else
+		{
+
+			if (fds[0].revents & POLLIN)
+			{
+				struct target_endeff_frame_s data;
+				orb_copy(ORB_ID(target_endeff_frame), target_endeff_frame_sub_fd, &data);
+				PX4_WARN("[mavlink_msg_receive] X Y Z Position:\n\t%8.4f %8.4f %8.4f\n", (double)data.x, (double)data.y, (double)data.z);
+			}
+
+			if (fds[1].revents & POLLIN)
+			{
+				struct manipulator_joint_status_s data;
+				orb_copy(ORB_ID(manipulator_joint_status), manipulator_joint_status_sub_fd, &data);
+				PX4_WARN("[mavlink_msg_receive] joint_rate  :\n\t%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f\n", (double)data.joint_rate_1, (double)data.joint_rate_2, (double)data.joint_rate_3, (double)data.joint_rate_4, (double)data.joint_rate_5, (double)data.joint_rate_6, (double)data.joint_rate_7);
+
+			}
+			if (fds[2].revents & POLLIN)
+						{
+							struct endeff_frame_status_s data;
+							orb_copy(ORB_ID(endeff_frame_status), endeff_frame_status_sub_fd, &data);
+							PX4_WARN("[mavlink_msg_receive] X Y Z Position:\n\t%8.4f %8.4f %8.4f\n", (double)data.x, (double)data.y, (double)data.z);
+						}
 		}
+
 	}
 
-	warnx("[mavlink_msg_receive] exiting.\n");
+	    warnx("[mavlink_msg_receive] exiting.\n");
+		thread_running = false;
 
-	thread_running = false;
-
-	return 0;
-}
+		return 0;
+	}
 
 
