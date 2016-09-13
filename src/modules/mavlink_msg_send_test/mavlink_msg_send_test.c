@@ -211,8 +211,7 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 		mavros_data2.gripper_status=1;
 		mavros_data2.gripper_posi=9;
 	    orb_publish(ORB_ID(endeff_frame_status), endeff_frame_status_pub, &mavros_data2);
-		PX4_WARN("[mavlink_msg_send] Success!");
-		sleep(10);
+		sleep(3);
 	}
 
 	warnx("[mavlink_msg_send] exiting.\n");
