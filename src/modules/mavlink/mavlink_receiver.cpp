@@ -126,6 +126,9 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_follow_target_pub(nullptr),
 	_transponder_report_pub(nullptr),
 	_gps_inject_data_pub(nullptr),
+	_target_endeff_frame_pub(nullptr),
+	_manipulator_joint_status_pub(nullptr),
+	_endeff_frame_status_pub(nullptr),
 	_control_mode_sub(orb_subscribe(ORB_ID(vehicle_control_mode))),
 	_hil_frames(0),
 	_old_timestamp(0),
@@ -152,6 +155,107 @@ MavlinkReceiver::~MavlinkReceiver()
 }
 
 void
+MavlinkReceiver::handle_message_target_endeff_frame(mavlink_message_t *msg)
+{
+	mavlink_target_endeff_frame_t target_endeff_frame_data;
+	mavlink_msg_target_endeff_frame_decode(msg, &target_endeff_frame_data);
+   struct target_endeff_frame_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.x = target_endeff_frame_data.x;
+    f.y = target_endeff_frame_data.y;
+    f.z = target_endeff_frame_data.z;
+    f.roll = target_endeff_frame_data.roll;
+    f.pitch = target_endeff_frame_data.pitch;
+    f.yaw = target_endeff_frame_data.yaw;
+    f.vx = target_endeff_frame_data.vx;
+    f.vy = target_endeff_frame_data.vy;
+    f.vz = target_endeff_frame_data.vz;
+    f.roll_rate = target_endeff_frame_data.roll_rate;
+    f.pitch_rate = target_endeff_frame_data.pitch_rate;
+    f.yaw_rate = target_endeff_frame_data.yaw_rate;
+    f.arm_enable=1;
+    if (_target_endeff_frame_pub == nullptr) {
+    	_target_endeff_frame_pub = orb_advertise(ORB_ID(target_endeff_frame), &f);
+
+    } else {
+        orb_publish(ORB_ID(target_endeff_frame), _target_endeff_frame_pub, &f);
+    }
+}
+void
+MavlinkReceiver::handle_message_manipulator_joint_status(mavlink_message_t *msg)
+{
+	mavlink_manipulator_joint_status_t manipulator_joint_status_data;
+	mavlink_msg_manipulator_joint_status_decode(msg, &manipulator_joint_status_data);
+
+   struct manipulator_joint_status_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.joint_posi_1 = manipulator_joint_status_data.joint_posi_1;
+    f.joint_posi_2 = manipulator_joint_status_data.joint_posi_2;
+    f.joint_posi_3 = manipulator_joint_status_data.joint_posi_3;
+    f.joint_posi_4 = manipulator_joint_status_data.joint_posi_4;
+    f.joint_posi_5 = manipulator_joint_status_data.joint_posi_5;
+    f.joint_posi_6 = manipulator_joint_status_data.joint_posi_6;
+    f.joint_posi_7 = manipulator_joint_status_data.joint_posi_7;
+    f.joint_rate_1 = manipulator_joint_status_data.joint_rate_1;
+    f.joint_rate_2 = manipulator_joint_status_data.joint_rate_2;
+    f.joint_rate_3 = manipulator_joint_status_data.joint_rate_3;
+    f.joint_rate_4 = manipulator_joint_status_data.joint_rate_4;
+    f.joint_rate_5 = manipulator_joint_status_data.joint_rate_5;
+    f.joint_rate_6 = manipulator_joint_status_data.joint_rate_6;
+    f.joint_rate_7 = manipulator_joint_status_data.joint_rate_7;
+    f.torque_1 = manipulator_joint_status_data.torque_1;
+    f.torque_2 = manipulator_joint_status_data.torque_2;
+    f.torque_3 = manipulator_joint_status_data.torque_3;
+    f.torque_4 = manipulator_joint_status_data.torque_4;
+    f.torque_5 = manipulator_joint_status_data.torque_5;
+    f.torque_6 = manipulator_joint_status_data.torque_6;
+    f.torque_7 = manipulator_joint_status_data.torque_7;
+
+    if (_manipulator_joint_status_pub == nullptr) {
+    	_manipulator_joint_status_pub = orb_advertise(ORB_ID(manipulator_joint_status), &f);
+
+    } else {
+        orb_publish(ORB_ID(manipulator_joint_status), _manipulator_joint_status_pub, &f);
+    }
+}
+void
+MavlinkReceiver::handle_message_endeff_frame_status(mavlink_message_t *msg)
+{
+	mavlink_endeff_frame_status_t endeff_frame_status_data;
+	mavlink_msg_endeff_frame_status_decode(msg, &endeff_frame_status_data);
+
+   struct endeff_frame_status_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.gripper_posi=endeff_frame_status_data.gripper_posi;
+    f.x = endeff_frame_status_data.x;
+    f.y = endeff_frame_status_data.y;
+    f.z = endeff_frame_status_data.z;
+    f.roll = endeff_frame_status_data.roll;
+    f.pitch = endeff_frame_status_data.pitch;
+    f.yaw = endeff_frame_status_data.yaw;
+    f.vx = endeff_frame_status_data.vx;
+    f.vy = endeff_frame_status_data.vy;
+    f.vz = endeff_frame_status_data.vz;
+    f.roll_rate = endeff_frame_status_data.roll_rate;
+    f.pitch_rate = endeff_frame_status_data.pitch_rate;
+    f.yaw_rate = endeff_frame_status_data.yaw_rate;
+    f.arm_enable=1;
+	f.gripper_status=1;
+    if (_endeff_frame_status_pub == nullptr) {
+    	_endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &f);
+
+    } else {
+        orb_publish(ORB_ID(endeff_frame_status), _endeff_frame_status_pub, &f);
+    }
+}
+
+void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
 	if (!_mavlink->get_config_link_on()) {
@@ -174,6 +278,16 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		}
 
 		break;
+	case MAVLINK_MSG_ID_TARGET_ENDEFF_FRAME:
+			handle_message_target_endeff_frame(msg);
+			break;
+
+	case MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS:
+			handle_message_manipulator_joint_status(msg);
+			break;
+	case MAVLINK_MSG_ID_ENDEFF_FRAME_STATUS:
+			handle_message_endeff_frame_status(msg);
+			break;
 
 	case MAVLINK_MSG_ID_OPTICAL_FLOW_RAD:
 		handle_message_optical_flow_rad(msg);

@@ -58,6 +58,7 @@ __BEGIN_DECLS
 #include <unistd.h>
 
 
+
 /* Struct that stores the communication settings of this system.
    you can also define / alter these settings elsewhere, as long
    as they're included BEFORE mavlink.h.
@@ -83,7 +84,8 @@ void mavlink_end_uart_send(mavlink_channel_t chan, int length);
 extern mavlink_status_t *mavlink_get_channel_status(uint8_t chan);
 extern mavlink_message_t *mavlink_get_channel_buffer(uint8_t chan);
 
-#include <v2.0/common/mavlink.h>
+//#include <v2.0/common/mavlink.h>
+#include <v2.0/UAV_mani/mavlink.h>
 
 __END_DECLS
 
