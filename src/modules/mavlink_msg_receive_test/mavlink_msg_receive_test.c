@@ -206,9 +206,9 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 				struct endeff_frame_status_s data;
 				orb_copy(ORB_ID(endeff_frame_status), endeff_frame_status_sub_fd, &data);
 				PX4_WARN("\n mavlink_msg_receive: endeff_frame_status \n \t Position:\n\t%8.4f %8.4f %8.4f", (double)data.x, (double)data.y, (double)data.z);
-				printf("\t Attitude:\n\t%8.4f %8.4f %8.4f\n", (double)data.roll, (double)data.pitch, (double)data.yaw);
-				printf("\t Velocity:\n\t%8.4f %8.4f %8.4f\n", (double)data.vx, (double)data.vy, (double)data.vz);
-				printf("\t Angular speed:\n\t%8.4f %8.4f %8.4f\n", (double)data.roll_rate, (double)data.pitch_rate, (double)data.yaw_rate);
+				printf("\t Attitude:%8.4f %8.4f %8.4f\n", (double)data.roll, (double)data.pitch, (double)data.yaw);
+				printf("\t Velocity:%8.4f %8.4f %8.4f\n", (double)data.vx, (double)data.vy, (double)data.vz);
+				printf("\t Angular speed:%8.4f %8.4f %8.4f\n", (double)data.roll_rate, (double)data.pitch_rate, (double)data.yaw_rate);
 				printf("\t enable robotic arm:%8.4f", (double)data.arm_enable);
 				printf("\t gripper_status:%8.4f", (double)data.gripper_status);
 				printf("\t gripper_position:%8.4f", (double)data.gripper_posi);
