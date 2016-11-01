@@ -82,6 +82,8 @@
 #include <uORB/topics/follow_target.h>
 #include <uORB/topics/transponder_report.h>
 #include <uORB/topics/gps_inject_data.h>
+// By LZ
+#include <uORB/topics/target_info.h>
 
 #include "mavlink_ftp.h"
 
@@ -153,6 +155,8 @@ private:
 	void handle_message_target_endeff_frame(mavlink_message_t *msg);
 	void handle_message_manipulator_joint_status(mavlink_message_t *msg);
 	void handle_message_endeff_frame_status(mavlink_message_t *msg);
+	// By LZ
+	void handle_message_target_info(mavlink_message_t *msg);
 
 	void *receive_thread(void *arg);
 
@@ -232,6 +236,9 @@ private:
 	orb_advert_t _target_endeff_frame_pub;
 	orb_advert_t _manipulator_joint_status_pub;
 	orb_advert_t _endeff_frame_status_pub;
+	//By LZ
+	orb_advert_t _target_info_pub;
+
 	int _control_mode_sub;
 	int _hil_frames;
 	uint64_t _old_timestamp;

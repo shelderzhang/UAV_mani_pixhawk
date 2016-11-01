@@ -122,6 +122,8 @@ set(msg_file_names
 	manipulator_joint_status.msg
 	target_endeff_frame.msg
 	endeff_frame_status.msg
+	
+	target_info.msg
 	)
 
 # Get absolute paths

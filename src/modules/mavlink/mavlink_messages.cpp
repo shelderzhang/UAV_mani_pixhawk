@@ -58,7 +58,6 @@
 #include <uORB/topics/target_endeff_frame.h>
 #include <uORB/topics/endeff_frame_status.h>
 
-
 #include <uORB/topics/actuator_armed.h>
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/actuator_outputs.h>
@@ -94,6 +93,8 @@
 #include <uORB/topics/vision_position_estimate.h>
 #include <uORB/topics/vtol_vehicle_status.h>
 #include <uORB/topics/wind_estimate.h>
+// By LZ
+#include <uORB/topics/target_info.h>
 #include <uORB/uORB.h>
 
 
@@ -3487,6 +3488,80 @@ protected:
 	}
 };
 
+// By LZ
+class MavlinkStreamTargetInfo : public MavlinkStream
+{
+public:
+	const char *get_name() const
+	{
+		return MavlinkStreamTargetInfo::get_name_static();
+	}
+
+	static const char *get_name_static()
+	{
+		return "TARGET_INFO";
+	}
+
+	static uint8_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_TARGET_INFO;
+	}
+
+	uint8_t get_id()
+	{
+		return get_id_static();
+	}
+
+	static MavlinkStream *new_instance(Mavlink *mavlink)
+	{
+		return new MavlinkStreamTargetInfo(mavlink);
+	}
+
+	unsigned get_size()
+	{
+		return (_target_info_time > 0) ? MAVLINK_MSG_ID_TARGET_INFO_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES : 0;
+	}
+
+private:
+	MavlinkOrbSubscription *_target_info_sub;
+	uint64_t _target_info_time;
+
+	/* do not allow top copying this class */
+	MavlinkStreamTargetInfo(MavlinkStreamTargetInfo &);
+	MavlinkStreamTargetInfo &operator = (const MavlinkStreamTargetInfo &);
+
+protected:
+	explicit MavlinkStreamTargetInfo(Mavlink *mavlink) : MavlinkStream(mavlink),
+		_target_info_sub(_mavlink->add_orb_subscription(ORB_ID(target_info))),
+		_target_info_time(0)
+	{}
+
+	void send(const hrt_abstime t)
+	{
+		struct target_info_s target_info = {};
+
+		bool updated = _target_info_sub->update(&_target_info_time, &target_info);
+
+		if (updated) {
+
+			mavlink_target_info_t msg = {};
+
+			msg.time_usec=target_info.timestamp;
+			msg.x=target_info.x;
+			msg.y=target_info.y;
+			msg.z=target_info.z;
+			msg.vx=target_info.vx;
+			msg.vy=target_info.vy;
+			msg.vz=target_info.vz;
+			msg.roll=target_info.roll;
+			msg.pitch=target_info.pitch;
+			msg.yaw=target_info.yaw;
+
+			mavlink_msg_target_info_send_struct(_mavlink->get_channel(), &msg);
+		}
+	}
+};
+
 const StreamListItem *streams_list[] = {
 
 	new StreamListItem(&MavlinkStreamTargetEndeffFrame::new_instance, &MavlinkStreamTargetEndeffFrame::get_name_static, &MavlinkStreamTargetEndeffFrame::get_id_static),
@@ -3535,5 +3610,7 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamAltitude::new_instance, &MavlinkStreamAltitude::get_name_static, &MavlinkStreamAltitude::get_id_static),
 	new StreamListItem(&MavlinkStreamADSBVehicle::new_instance, &MavlinkStreamADSBVehicle::get_name_static, &MavlinkStreamADSBVehicle::get_id_static),
 	new StreamListItem(&MavlinkStreamWind::new_instance, &MavlinkStreamWind::get_name_static, &MavlinkStreamWind::get_id_static),
+	// By LZ
+	new StreamListItem(&MavlinkStreamTargetInfo::new_instance, &MavlinkStreamTargetInfo::get_name_static, &MavlinkStreamTargetInfo::get_id_static),
 	nullptr
 };

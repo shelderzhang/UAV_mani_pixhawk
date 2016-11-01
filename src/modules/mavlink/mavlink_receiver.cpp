@@ -129,6 +129,10 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_target_endeff_frame_pub(nullptr),
 	_manipulator_joint_status_pub(nullptr),
 	_endeff_frame_status_pub(nullptr),
+	// By LZ
+	_target_info_pub(nullptr),
+
+
 	_control_mode_sub(orb_subscribe(ORB_ID(vehicle_control_mode))),
 	_hil_frames(0),
 	_old_timestamp(0),
@@ -377,6 +381,11 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 
 	case MAVLINK_MSG_ID_SERIAL_CONTROL:
 		handle_message_serial_control(msg);
+		break;
+
+	// By LZ
+	case MAVLINK_MSG_ID_TARGET_INFO:
+		handle_message_target_info(msg);
 		break;
 
 	default:
@@ -2177,6 +2186,33 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 		} else {
 			orb_publish(ORB_ID(battery_status), _battery_pub, &hil_battery_status);
 		}
+	}
+}
+
+// By LZ
+void MavlinkReceiver::handle_message_target_info(mavlink_message_t *msg)
+{
+	mavlink_target_info_t target_info_msg;
+	target_info_s target_info_topic = { };
+
+	mavlink_msg_target_info_decode(msg, &target_info_msg);
+
+	target_info_topic.timestamp = hrt_absolute_time();
+	target_info_topic.x=target_info_msg.x;
+	target_info_topic.y=target_info_msg.y;
+	target_info_topic.z=target_info_msg.z;
+	target_info_topic.vx=target_info_msg.vx;
+	target_info_topic.vy=target_info_msg.vy;
+	target_info_topic.vz=target_info_msg.vz;
+	target_info_topic.roll=target_info_msg.roll;
+	target_info_topic.pitch=target_info_msg.pitch;
+	target_info_topic.yaw=target_info_msg.yaw;
+
+	if (_target_info_pub == nullptr) {
+		_target_info_pub = orb_advertise(ORB_ID(target_info), &target_info_topic);
+	} else {
+		orb_publish(ORB_ID(target_info), _target_info_pub, &target_info_topic);
+		printf("!!!!\n");
 	}
 }
 
