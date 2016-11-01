@@ -646,6 +646,23 @@ struct log_PARM_s {
 	char name[16];
 	float value;
 };
+
+/* --- TARGET - INFORMATION --- */
+// By LZ
+#define LOG_TARI_MSG 132
+struct log_TARI_s {
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+	float roll;
+	float pitch;
+	float yaw;
+};
+
+
 #pragma pack(pop)
 
 // the lower type of initialisation is not supported in C++
@@ -718,7 +735,9 @@ static const struct log_format_s log_formats[] = {
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),
 	LOG_FORMAT(VER, "NZ", "Arch,FwGit"),
-	LOG_FORMAT(PARM, "Nf", "Name,Value")
+	LOG_FORMAT(PARM, "Nf", "Name,Value"),
+	// By LZ
+	LOG_FORMAT(TARI, "fffffffff", "Tx,Ty,Tz,Tvx,Tvy,Tvz,Troll,Tpitch,Tyaw")
 };
 
 static const unsigned log_formats_num = sizeof(log_formats) / sizeof(log_formats[0]);

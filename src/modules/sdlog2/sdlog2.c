@@ -111,6 +111,8 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
+// By LZ
+#include <uORB/topics/target_info.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1223,6 +1225,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_land_detected_s land_detected;
 		struct cpuload_s cpuload;
 		struct vehicle_gps_position_s dual_gps_pos;
+		// By LZ
+		struct target_info_s target_info;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1284,6 +1288,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_LAND_s log_LAND;
 			struct log_RPL6_s log_RPL6;
 			struct log_LOAD_s log_LOAD;
+			// By LZ
+			struct log_TARI_s log_TARI;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1333,6 +1339,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int land_detected_sub;
 		int commander_state_sub;
 		int cpuload_sub;
+		// By LZ
+		int tari_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1375,6 +1383,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.land_detected_sub = -1;
 	subs.commander_state_sub = -1;
 	subs.cpuload_sub = -1;
+	// By LZ
+	subs.tari_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2299,6 +2309,22 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_LOAD.cpu_load = buf.cpuload.load;
 			LOGBUFFER_WRITE_AND_COUNT(LOAD);
 
+		}
+
+		// By LZ
+		/* --- TARGET INFORMATION --- */
+		if(copy_if_updated(ORB_ID(target_info), &subs.tari_sub, &buf.target_info)) {
+			log_msg.msg_type = LOG_TARI_MSG;
+			log_msg.body.log_TARI.x = buf.target_info.x;
+			log_msg.body.log_TARI.y = buf.target_info.y;
+			log_msg.body.log_TARI.z = buf.target_info.z;
+			log_msg.body.log_TARI.vx = buf.target_info.vx;
+			log_msg.body.log_TARI.vy = buf.target_info.vy;
+			log_msg.body.log_TARI.vz = buf.target_info.vz;
+			log_msg.body.log_TARI.roll = buf.target_info.roll;
+			log_msg.body.log_TARI.pitch = buf.target_info.pitch;
+			log_msg.body.log_TARI.yaw = buf.target_info.yaw;
+			LOGBUFFER_WRITE_AND_COUNT(TARI);
 		}
 
 		pthread_mutex_lock(&logbuffer_mutex);
