@@ -181,6 +181,9 @@ set(config_module_list
 
 	# Hardware test
 	#examples/hwtest
+
+	# For MOCAP delay test
+	modules/for_delay_test
 )
 
 set(config_extra_builtin_cmds
