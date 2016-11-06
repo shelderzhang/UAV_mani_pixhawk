@@ -240,7 +240,7 @@ PARAM_DEFINE_INT32(LPE_VIS_ON, 1);
  *
  * @group Local Position Estimator
  * @unit m
- * @min 0.01
+ * @min 0.001
  * @max 1
  * @decimal 3
  */
