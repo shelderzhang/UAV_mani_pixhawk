@@ -49,6 +49,11 @@
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 
+#include <drivers/drv_hrt.h>
+
+#include <uORB/uORB.h>
+#include <uORB/topics/att_pos_mocap.h>
+
 static bool thread_should_exit = false;		/**< daemon exit flag */
 static bool thread_running = false;		/**< daemon status flag */
 static int daemon_task;				/**< Handle of daemon task / thread */
@@ -137,10 +142,50 @@ int px4_daemon_thread_main(int argc, char *argv[])
 	warnx("[daemon] starting\n");
 
 	thread_running = true;
+	orb_advert_t _att_pos_mocap_pub = NULL;
+//
+//	float MAXNUM = 100;
+//	float index = 0;
 
+	hrt_abstime pre = 0;
 	while (!thread_should_exit) {
-		warnx("Hello daemon!\n");
-		sleep(10);
+//		warnx("Hello daemon!\n");
+//		sleep(10);
+		struct att_pos_mocap_s att_pos_mocap = {};
+
+		// Use the component ID to identify the mocap system
+		att_pos_mocap.id = 1;
+
+		hrt_abstime now = hrt_absolute_time();
+		if (now - pre > 20000) {
+			pre = now;
+			att_pos_mocap.timestamp = now;
+			att_pos_mocap.timestamp_received = now;
+
+			att_pos_mocap.q[0] = 1;
+			att_pos_mocap.q[1] = 0;
+			att_pos_mocap.q[2] = 0;
+			att_pos_mocap.q[3] = 0;
+
+	//		float value = ++index / MAXNUM;
+	//
+	//		if (index > MAXNUM) {
+	//			index = 0;
+	//		}
+
+			att_pos_mocap.x = 1;
+			att_pos_mocap.y = 3;
+			att_pos_mocap.z = -3;
+
+			if (_att_pos_mocap_pub == NULL) {
+				_att_pos_mocap_pub = orb_advertise(ORB_ID(att_pos_mocap), &att_pos_mocap);
+
+			} else {
+				orb_publish(ORB_ID(att_pos_mocap), _att_pos_mocap_pub, &att_pos_mocap);
+			}
+		} else {
+			usleep(1000);
+		}
 	}
 
 	warnx("[daemon] exiting.\n");

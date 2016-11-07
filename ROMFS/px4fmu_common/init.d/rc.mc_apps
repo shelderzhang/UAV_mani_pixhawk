@@ -4,7 +4,6 @@
 # att & pos estimator, att & pos control.
 #
 
-
 #---------------------------------------
 # Estimator group selction
 #
@@ -37,3 +36,5 @@ mc_pos_control start
 # Start Land Detector
 #
 land_detector start multicopter
+
+#px4_daemon_app start

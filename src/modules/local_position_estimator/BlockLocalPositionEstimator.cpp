@@ -6,6 +6,8 @@
 #include <matrix/math.hpp>
 #include <cstdlib>
 
+#define ONLY_MOCAP
+
 orb_advert_t mavlink_log_pub = nullptr;
 
 // timeouts for sensors in microseconds
@@ -94,6 +96,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_flow_gyro_y_high_pass(this, "FGYRO_HP"),
 
 	// stats
+	/*statistics -bdai<3 Nov 2016>*/
 	_baroStats(this, ""),
 	_sonarStats(this, ""),
 	_lidarStats(this, ""),
@@ -293,6 +296,15 @@ void BlockLocalPositionEstimator::update()
 	bool lidarUpdated = (_sub_lidar != NULL) && _sub_lidar->updated();
 	bool sonarUpdated = (_sub_sonar != NULL) && _sub_sonar->updated();
 
+#ifdef ONLY_MOCAP
+	flowUpdated = false;
+	baroUpdated = false;
+	gpsUpdated = false;
+	visionUpdated = false;
+	lidarUpdated = false;
+	sonarUpdated = false;
+#endif
+
 	// get new data
 	updateSubscriptions();
 
@@ -307,7 +319,7 @@ void BlockLocalPositionEstimator::update()
 
 	if (_validXY) {
 		// if valid and gps has timed out, set to not valid
-		if (!xy_stddev_ok && !_gpsInitialized) {
+		if (!xy_stddev_ok && !_gpsInitialized) { /*may need some adjustments -bdai<4 Nov 2016>*/
 			_validXY = false;
 		}
 
@@ -322,7 +334,7 @@ void BlockLocalPositionEstimator::update()
 
 	if (_validZ) {
 		// if valid and baro has timed out, set to not valid
-		if (!z_stddev_ok && !_baroInitialized) {
+		if (!z_stddev_ok && !_baroInitialized) { /*may need some adjustments -bdai<4 Nov 2016>*/
 			_validZ = false;
 		}
 
@@ -363,6 +375,7 @@ void BlockLocalPositionEstimator::update()
 	checkTimeouts();
 
 	// if we have no lat, lon initialize projection at 0,0
+	/*this might change when use mocap -bdai<6 Nov 2016>*/
 	if (_validXY && !_map_ref.init_done) {
 		map_projection_init(&_map_ref,
 				    _init_origin_lat.get(),
@@ -469,6 +482,7 @@ void BlockLocalPositionEstimator::update()
 			visionCorrect();
 		}
 	}
+
 
 	if (mocapUpdated) {
 		if (!_mocapInitialized) {
@@ -593,6 +607,7 @@ void BlockLocalPositionEstimator::correctionLogic(Vector<float, n_x> &dx)
 	float by = dx(X_by) + _x(X_by);
 	float bz = dx(X_bz) + _x(X_bz);
 
+	/*what's for ,did not use this value -bdai<4 Nov 2016>*/
 	if (std::abs(bx) > BIAS_MAX) { bx = BIAS_MAX * bx / std::abs(bx); }
 
 	if (std::abs(by) > BIAS_MAX) { by = BIAS_MAX * by / std::abs(by); }
@@ -809,6 +824,7 @@ void BlockLocalPositionEstimator::updateSSParams()
 	_Q(X_bz, X_bz) = pn_b_sq;
 
 	// terrain random walk noise ((m/s)/sqrt(hz)), scales with velocity
+	/*confuse me!  -bdai<4 Nov 2016>*/
 	float pn_t_stddev = (_t_max_grade.get() / 100.0f) * sqrtf(_x(X_vx) * _x(X_vx) + _x(X_vy) * _x(X_vy));
 	_Q(X_tz, X_tz) = pn_t_stddev * pn_t_stddev;
 }
