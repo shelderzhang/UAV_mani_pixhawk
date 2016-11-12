@@ -51,6 +51,7 @@
 #include "topics/rc_channels.h"
 #include "topics/filtered_bottom_flow.h"
 #include "topics/ekf2_innovations.h"
+#include "topics/target_endeff_frame.h"
 
 #include <px4_defines.h>
 
@@ -123,4 +124,6 @@ template class __EXPORT Publication<rc_channels_s>;
 template class __EXPORT Publication<filtered_bottom_flow_s>;
 template class __EXPORT Publication<ekf2_innovations_s>;
 
+/*used to control manipulator -bdai<7 Nov 2016>*/
+template class __EXPORT Publication<target_endeff_frame_s>;
 }
