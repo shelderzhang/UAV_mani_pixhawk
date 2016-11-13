@@ -405,7 +405,7 @@ protected:
         	_msg_data.roll_rate = _data.roll_rate;
         	_msg_data.pitch_rate = _data.pitch_rate;
         	_msg_data.yaw_rate = _data.yaw_rate;
-        	_msg_data.arm_enable=1;
+        	_msg_data.arm_enable = _data.arm_enable;
         	mavlink_msg_target_endeff_frame_send_struct(_mavlink->get_channel(), &_msg_data);
         }
     }
@@ -549,8 +549,8 @@ protected:
         	_msg_data.roll_rate = _data.roll_rate;
         	_msg_data.pitch_rate = _data.pitch_rate;
         	_msg_data.yaw_rate = _data.yaw_rate;
-        	_msg_data.arm_enable=1;
-        	_msg_data.gripper_status=1;
+        	_msg_data.arm_enable = _data.arm_enable;
+        	_msg_data.gripper_status = _data.gripper_status;
 
 
         	mavlink_msg_endeff_frame_status_send_struct(_mavlink->get_channel(), &_msg_data);
