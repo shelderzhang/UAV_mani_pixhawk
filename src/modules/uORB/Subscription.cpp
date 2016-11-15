@@ -65,6 +65,7 @@
 #include "topics/vision_position_estimate.h"
 #include "topics/control_state.h"
 #include "topics/vehicle_land_detected.h"
+#include "topics/endeff_frame_status.h"
 
 /*using for manipulator  -bdai<8 Nov 2016>*/
 #include "topics/target_info.h"
@@ -189,5 +190,6 @@ template class __EXPORT Subscription<vehicle_land_detected_s>;
 
 /*using for motion capture system -bdai<8 Nov 2016>*/
 template class __EXPORT Subscription<target_info_s>;
+template class __EXPORT Subscription<endeff_frame_status_s>;
 
 } // namespace uORB
