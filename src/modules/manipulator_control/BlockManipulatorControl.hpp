@@ -66,6 +66,7 @@ private:
 	perf_counter_t _err_perf;
 
 	uint64_t _timeStamp;
+	uint64_t _timePrint;
 
 	bool _mani_triggered;
 

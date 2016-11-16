@@ -13,8 +13,13 @@
 #include "BlockManipulatorControl.hpp"
 
 static Vector3f MANI_OFFSET(-0.0183f, 0.0003f, 0.1396f);
-static float MANI_RANGE[6] = {0.0f, 0.5f, -0.2f, 0.2f, 0.1f, 0.5f};
-enum {X_MIN = 0, X_MAX, Y_MIN, Y_MAX, Z_MIN, Z_MAX};
+static Vector3f MANI_FIRST_JOINT(0, 0, 0.109);
+
+static float MANI_RANGE[6] = {0.3f, 0.45f,
+		-10.0f / 180.0f * (float)M_PI, 40.0f / 180.0f * (float)M_PI,
+		-40.0f / 180.0f * (float)M_PI, 40.0f / 180.0f * (float)M_PI};
+enum {R_MIN = 0, R_MAX, THETA_MIN, THETA_MAX, PSI_MIN, PSI_MAX};
+
 
 /*relative rest duration before start grabbing 0.5s -bdai<13 Nov 2016>*/
 static uint32_t REST_DURATION = 500000;	// 0.5 s
@@ -36,6 +41,7 @@ BlockManipulatorControl::BlockManipulatorControl():
 	// Loop performance
 	_err_perf(),
 	_timeStamp(),
+	_timePrint(),
 	_mani_triggered(false),
 	_in_range(0),
 	_relative_rest(false),
@@ -70,52 +76,34 @@ void BlockManipulatorControl::control() {
 		return;
 	}
 
-//	usleep(100000);
-	uint64_t newTimeStamp = hrt_absolute_time();
-	float dt = (newTimeStamp - _timeStamp) / 1.0e6f;
-//	_timeStamp = newTimeStamp;
-
-//	bool print_info = false;
-//	if (newTimeStamp - _last_info_time > 500000){
-//		print_info = true;
-//		_last_info_time = newTimeStamp;
-//	}
+	_timeStamp = hrt_absolute_time();
+	float dt = (_timeStamp - _timePrint) / 1.0e6f;
 
 	setDt(dt);
 
 	// get new data
 	updateSubscriptions();
 
-
-//	// set period about 0.2s
-//	if (getDt() < 0.5f){
-//		return;
-//	}
-
-	_timeStamp = newTimeStamp;
 	bool enableMani = (_manual_sub.get().flaps > 0.75f);
 	enableMani = true;
 	if (enableMani) {
-
 		Vector3f target_pos(_target_sub.get().x, _target_sub.get().y, _target_sub.get().z);
 
-		warnx("target x:%8.4f, y:%8.4f, z:%8.4f",
-			(double)target_pos(0),
-			(double)target_pos(1),
-			(double)target_pos(2));
+//		warnx("target x:%8.4f, y:%8.4f, z:%8.4f",
+//			(double)target_pos(0),
+//			(double)target_pos(1),
+//			(double)target_pos(2));
 
 		//		Vector3f target_pos = Vector3f(0.38, 0.0, -0.65) + MANI_OFFSET;
-
 		//		Vector3f target_vel(_target_sub.get().vx, _target_sub.get().vy, _target_sub.get().vz);
 
 		Vector3f pos(_pos_sub.get().x, _pos_sub.get().y, _pos_sub.get().z);
-
 //		Vector3f pos(0.0f, 0.0f, -1.0f);
 
 		Matrix3f R_att(_att_sub.get().R);
+		Vector3f distance = R_att.transpose() * (target_pos - pos) - MANI_OFFSET - MANI_FIRST_JOINT;
 
-		Vector3f distance = R_att.transpose() * (target_pos - pos) - MANI_OFFSET;
-
+		Vector3f mani_sp(distance);
 //		if (print_info) {
 //			warnx("distance x:%8.4f, y:%8.4f, z:%8.4f",
 //				(double)distance(0),
@@ -124,33 +112,56 @@ void BlockManipulatorControl::control() {
 //		}
 
 		_in_range = 0;
-		if (distance(0) < MANI_RANGE[X_MIN]) {
-			_manip_pub.get().x = MANI_RANGE[X_MIN];
+		/*when target is in range between two  -bdai<16 Nov 2016>*/
+		float distance_norm = distance.norm();
+		if (distance_norm < MANI_RANGE[R_MIN]) {
+			mani_sp = MANI_RANGE[R_MIN] * mani_sp.normalized();
+		} else if (distance_norm > MANI_RANGE[R_MAX]) {
+			mani_sp = MANI_RANGE[R_MAX] * mani_sp.normalized();
 		}
-		else if (distance(0) > MANI_RANGE[X_MAX]) {
-			_manip_pub.get().x = MANI_RANGE[X_MAX];
-		} else {
-			_manip_pub.get().x = distance(0);
+		else {
 			_in_range |= 1;
 		}
 
-		if (distance(1) < MANI_RANGE[Y_MIN]) {
-			_manip_pub.get().y = MANI_RANGE[Y_MIN];
-		}
-		else if(distance(1) > MANI_RANGE[Y_MAX]) {
-			_manip_pub.get().y = MANI_RANGE[Y_MAX];
+		Vector3f projection_normlized = Vector3f(mani_sp(0), mani_sp(1), 0.0f).normalized();
+		float mani_sp_norm = mani_sp.norm();
+
+//		float sin_theta = (Vector3f(mani_sp(0), mani_sp(1), 0).normalized() % mani_sp.normalized()).norm();
+		Vector3f mani_sp_nomolized = mani_sp.normalized();
+		float sin_theta = mani_sp_nomolized(2);
+		if ( sin_theta < sinf(MANI_RANGE[THETA_MIN])) {
+			Vector3f r = (projection_normlized % mani_sp).normalized();
+			Quatf q;
+			q.from_axis_angle(r, THETA_MIN);
+			Dcmf R(q);
+			mani_sp = R * projection_normlized * mani_sp_norm;
+		} else if(sin_theta > sinf(MANI_RANGE[THETA_MAX])) {
+			Vector3f r = (projection_normlized % mani_sp).normalized();
+			Quatf q;
+			q.from_axis_angle(r, THETA_MAX);
+			Dcmf R(q);
+			mani_sp = R * projection_normlized * mani_sp_norm;
 		} else {
-			_manip_pub.get().y = distance(1);
 			_in_range |= 1<<1;
 		}
-		if (distance(2) < MANI_RANGE[Z_MIN]) {
-			_manip_pub.get().z = MANI_RANGE[Z_MIN];
-		} else if (distance(2) > MANI_RANGE[Z_MAX]) {
-			_manip_pub.get().z = MANI_RANGE[Z_MAX];
+
+		float sin_psi = projection_normlized(1);
+		mani_sp_norm = mani_sp.norm();
+		Vector3f projection = Vector3f(sqrt(mani_sp_norm*mani_sp_norm - mani_sp(2)*mani_sp(2)), 0, mani_sp(2));
+
+		if ( sin_psi < sinf(MANI_RANGE[PSI_MIN])) {
+			Quatf q(cosf(MANI_RANGE[PSI_MIN] / 2.0f), 0.0f, 0.0f, sinf(MANI_RANGE[PSI_MIN] / 2.0f));
+			Dcmf R(q);
+			mani_sp = R * projection;
+		} else if(sin_theta > sinf(MANI_RANGE[PSI_MIN])) {
+			Quatf q(cosf(MANI_RANGE[PSI_MIN] / 2.0f), 0.0f, 0.0f, sinf(MANI_RANGE[PSI_MIN] / 2.0f));
+			Dcmf R(q);
+			mani_sp = R * projection;
 		} else {
-			_manip_pub.get().z = distance(2);
 			_in_range |= 1<<2;
 		}
+
+		mani_sp = mani_sp + MANI_FIRST_JOINT;
 
 //		if (print_info) {
 //			warnx("_in_range: %d", _in_range);
