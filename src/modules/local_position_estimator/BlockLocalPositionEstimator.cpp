@@ -1,12 +1,11 @@
 #include "BlockLocalPositionEstimator.hpp"
+
 #include <drivers/drv_hrt.h>
 #include <systemlib/mavlink_log.h>
 #include <fcntl.h>
 #include <systemlib/err.h>
 #include <matrix/math.hpp>
 #include <cstdlib>
-
-#define ONLY_MOCAP
 
 orb_advert_t mavlink_log_pub = nullptr;
 
@@ -863,6 +862,7 @@ void BlockLocalPositionEstimator::predict()
 	// propagate
 	correctionLogic(dx);
 	_x += dx;
+	// why use this fomula. this is a continuous format
 	_P += (_A * _P + _P * _A.transpose() +
 	       _B * _R * _B.transpose() +
 	       _Q) * getDt();

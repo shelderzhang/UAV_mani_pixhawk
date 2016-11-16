@@ -30,6 +30,9 @@
 #include <uORB/topics/estimator_status.h>
 #include <uORB/topics/ekf2_innovations.h>
 
+/* only use mocap information -bdai<9 Nov 2016>*/
+#define ONLY_MOCAP
+
 using namespace matrix;
 using namespace control;
 

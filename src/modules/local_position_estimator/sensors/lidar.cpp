@@ -1,6 +1,6 @@
-#include "../BlockLocalPositionEstimator.hpp"
 #include <systemlib/mavlink_log.h>
 #include <matrix/math.hpp>
+#include "../BlockLocalPositionEstimator.hpp"
 
 extern orb_advert_t mavlink_log_pub;
 
@@ -49,6 +49,7 @@ int BlockLocalPositionEstimator::lidarMeasure(Vector<float, n_y_lidar> &y)
 	}
 
 	// update stats
+	/*there are some problems here! -bdai<6 Nov 2016>*/
 	_lidarStats.update(Scalarf(d + _lidar_z_offset.get()));
 	_time_last_lidar = _timeStamp;
 	y.setZero();
