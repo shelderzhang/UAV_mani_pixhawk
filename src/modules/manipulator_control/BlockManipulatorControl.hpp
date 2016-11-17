@@ -46,9 +46,8 @@ private:
 	BlockManipulatorControl(const BlockManipulatorControl &);
 	BlockManipulatorControl operator=(const BlockManipulatorControl &);
 
-	void print_info(){};
-
 	//methods
+	void mani_init_position();
 
 	//Subscriptions
 	uORB::Subscription<vehicle_local_position_s> _pos_sub;
@@ -76,6 +75,8 @@ private:
 	uint64_t _relative_rest_time;
 
 	uint64_t _last_info_time;
+
+	bool _grabbed;
 
 
 };
