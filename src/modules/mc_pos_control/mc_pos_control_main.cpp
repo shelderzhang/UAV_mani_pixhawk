@@ -99,17 +99,19 @@
 #define MANUAL_THROTTLE_MAX_MULTICOPTER	0.9f
 #define ONE_G	9.8066f
 
-static float ELEC_FENCE[3][2] = {-3.0f, 3.0f, -3.5f, 3.5f, 0.0f -1.0f};
+static float ELEC_FENCE[3][2] = {-2.5f, 2.5f, -2.5f, 2.5f, -0.45f -2.0f};
 static bool OUT_FENCE = false;
 /*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
 static bool FOLLOW_MODE = true;
 
 enum {MIN = 0, MAX};
-static float BALL_RING_RANGE[2] = {0.3f, 0.35f};
+static float BALL_RING_RANGE[2] = {0.4f, 0.42f};
 
 enum {SAFETY = 0, OPERA_LOW, OPERA_HIG = 2};
-static float HEIGHT_ABOVE_TARGET[3] = {0.2f, 0.3f, 0.4f};
+static float HEIGHT_ABOVE_TARGET[3] = {0.10f, 0.2f, 0.22f};
 
+static math::Vector<3> MANI_OFFSET(-0.0183f, 0.0003f, 0.1396f);
+static math::Vector<3> MANI_FIRST_JOINT(0, 0, 0.109);
 /**
  * Multicopter position control app start / stop handling function
  *
@@ -155,9 +157,9 @@ private:
 	int		_pos_sp_triplet_sub;		/**< position setpoint triplet */
 	int		_local_pos_sp_sub;		/**< offboard local position setpoint */
 	int		_global_vel_sp_sub;		/**< offboard global velocity setpoint */
-
+	int		_target_sub;
 	// subscriptions
-	uORB::Subscription<target_info_s> _target_sub;
+
 
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
@@ -176,6 +178,7 @@ private:
 	struct position_setpoint_triplet_s		_pos_sp_triplet;	/**< vehicle global position setpoint triplet */
 	struct vehicle_local_position_setpoint_s	_local_pos_sp;		/**< vehicle local position setpoint */
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
+	struct target_info_s _target;
 
 	control::BlockParamFloat _manual_thr_min;
 	control::BlockParamFloat _manual_thr_max;
@@ -391,7 +394,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_local_pos_sub(-1),
 	_pos_sp_triplet_sub(-1),
 	_global_vel_sp_sub(-1),
-	_target_sub(ORB_ID(target_info), 1000/100, 0, &getSubscriptions()),
+	_target_sub(-1),
 	/* publications */
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
@@ -408,6 +411,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_pos_sp_triplet{},
 	_local_pos_sp{},
 	_global_vel_sp{},
+	_target{},
 	_manual_thr_min(this, "MANTHR_MIN"),
 	_manual_thr_max(this, "MANTHR_MAX"),
 	_vel_x_deriv(this, "VELD"),
@@ -714,6 +718,12 @@ MulticopterPositionControl::poll_subscriptions()
 	if (updated) {
 		orb_copy(ORB_ID(vehicle_local_position), _local_pos_sub, &_local_pos);
 	}
+
+	orb_check(_target_sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(target_info), _target_sub, &_target);
+	}
 }
 
 float
@@ -1007,6 +1017,10 @@ MulticopterPositionControl::cross_sphere_line(const math::Vector<3> &sphere_c, f
 
 void MulticopterPositionControl::control_auto(float dt)
 {
+	static uint64_t print_time = hrt_absolute_time();
+
+	bool print =  (hrt_absolute_time() - print_time > 500000);
+
 	/* reset position setpoint on AUTO mode activation or if we are not in MC mode */
 	if (!_mode_auto || !_vehicle_status.is_rotary_wing) {
 		if (!_mode_auto) {
@@ -1023,37 +1037,47 @@ void MulticopterPositionControl::control_auto(float dt)
 /*used to control in motion capture system -bdai<1 Nov 2016>*/
 #if true
 	/*subscribe target position -bdai<1 Nov 2016>*/
-	math::Vector<3> target_pos(_target_sub.get().x, _target_sub.get().y, _target_sub.get().z);
-
+	math::Vector<3> target_pos(_target.x, _target.y, _target.z);
+	math::Vector<3> pos_first_joint = _pos + _R * (MANI_FIRST_JOINT + MANI_OFFSET);
+	if (print){
+		warnx("___pos x:%8.4f, y:%8.4f, z:%8.4f",(double)_pos(0),(double)_pos(1),(double)_pos(2));
+		warnx("target x:%8.4f, y:%8.4f, z:%8.4f",(double)target_pos(0),
+				(double)target_pos(1),(double)target_pos(2));
+	}
 	/*if uav is below target safety level-bdai<10 Nov 2016>*/
-	if(_pos(2) - target_pos(2) < HEIGHT_ABOVE_TARGET[SAFETY]) {
-		/*distance in xy plane -bdai<10 Nov 2016>*/
-		math::Vector<3> xy_distance(_pos(0) - target_pos(0),_pos(1) - target_pos(1), .0f);
 
+	math::Vector<3> err_sp(.0f, .0f, .0f);
+
+	if(target_pos(2) - pos_first_joint(2) < HEIGHT_ABOVE_TARGET[SAFETY]) {
+		/*distance in xy plane -bdai<10 Nov 2016>*/
+		math::Vector<3> xy_distance(target_pos(0) - pos_first_joint(0),
+				target_pos(1) - pos_first_joint(1), .0f);
+
+		/*constrain in two cylindrical surface -bdai<17 Nov 2016>*/
 		float xy_radius = xy_distance.length();
 		if (xy_radius > BALL_RING_RANGE[MAX]) {
-			_pos_sp = target_pos + xy_distance * BALL_RING_RANGE[MIN] +
-					math::Vector<3>(0.0f, 0.0f, HEIGHT_ABOVE_TARGET[OPERA_HIG]);
-
+			err_sp = xy_distance * BALL_RING_RANGE[MIN] +
+					math::Vector<3>(0.0f, 0.0f, -HEIGHT_ABOVE_TARGET[OPERA_HIG]);
 		} else if (xy_radius < BALL_RING_RANGE[MIN]) {
-			_pos_sp = target_pos + xy_distance * BALL_RING_RANGE[MAX] +
-					math::Vector<3>(0.0f, 0.0f, HEIGHT_ABOVE_TARGET[OPERA_HIG]);
+			err_sp = xy_distance * BALL_RING_RANGE[MAX] +
+					math::Vector<3>(0.0f, 0.0f, -HEIGHT_ABOVE_TARGET[OPERA_HIG]);
 		} else {
-			_pos_sp = target_pos + math::Vector<3>(0.0f, 0.0f, HEIGHT_ABOVE_TARGET[OPERA_HIG]);
+			err_sp = math::Vector<3>(0.0f, 0.0f, -HEIGHT_ABOVE_TARGET[OPERA_HIG]);
 		}
 	/*uav is up target safety level -bdai<10 Nov 2016>*/
 	} else {
-		float radius = (_pos - target_pos).length();
+		float radius = (pos_first_joint - target_pos).length();
 		if (radius < BALL_RING_RANGE[MIN]) {
-			_pos_sp = target_pos +  (_pos - target_pos).normalized() * BALL_RING_RANGE[MAX];
+			err_sp = (target_pos - pos_first_joint).normalized() * BALL_RING_RANGE[MAX];
 		}
 		else if (radius > BALL_RING_RANGE[MAX]) {
-			_pos_sp = target_pos +  (_pos - target_pos).normalized() * BALL_RING_RANGE[MIN];
+			err_sp = (target_pos - pos_first_joint).normalized() * BALL_RING_RANGE[MIN];
 		} else {
-			_pos_sp = _pos;
+			err_sp = math::Vector<3>(.0f, .0f, .0f);
 		}
 	}
 
+	_pos_sp = _pos + (target_pos - pos_first_joint) - err_sp;
 	/*constrain position setpoint in electric fence -bdai<1 Nov 2016>*/
 	for (int i = 0; i < 3; i++){
 		if (_pos_sp(i) < ELEC_FENCE[i][MIN]){
@@ -1065,6 +1089,22 @@ void MulticopterPositionControl::control_auto(float dt)
 		}
 	}
 
+	/*calculate yaw  -bdai<17 Nov 2016>*/
+
+	math::Vector<3> direction = (target_pos - _pos).normalized();
+	/*if there are too close with target -bdai<17 Nov 2016>*/
+	if (math::Vector<3>(direction(0), direction(1), 0).length() > sinf(15 / 180 * M_PI)) {
+		_att_sp.yaw_body = atan2f(direction(1), direction(0));
+	}
+
+	if (print){
+		warnx("err_sp x:%8.4f, y:%8.4f, z:%8.4f",(double)err_sp(0),
+				(double)err_sp(1),(double)err_sp(2));
+		warnx("pos_sp x:%8.4f, y:%8.4f, z:%8.4f",(double)_pos_sp(0),
+						(double)_pos_sp(1),(double)_pos_sp(2));
+		warnx("yaw__%8.4f", (double)_att_sp.yaw_body);
+		print_time = hrt_absolute_time();
+	}
 
 /*original code  -bdai<1 Nov 2016>*/
 #else
@@ -1284,6 +1324,7 @@ MulticopterPositionControl::task_main()
 	_pos_sp_triplet_sub = orb_subscribe(ORB_ID(position_setpoint_triplet));
 	_local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
 	_global_vel_sp_sub = orb_subscribe(ORB_ID(vehicle_global_velocity_setpoint));
+	_target_sub = orb_subscribe(ORB_ID(target_info));
 
 
 	parameters_update(true);
@@ -1514,8 +1555,8 @@ MulticopterPositionControl::task_main()
 				/* run position & altitude controllers, if enabled (otherwise use already computed velocity setpoints) */
 				if (_run_pos_control) {
 					if (OUT_FENCE == true || FOLLOW_MODE == true){
-						_vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0) + _target_sub.get().vx;
-						_vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1) + _target_sub.get().vy;
+						_vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0) + _target.vx;
+						_vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1) + _target.vy;
 					} else {
 						_vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0);
 						_vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1);
@@ -1564,7 +1605,7 @@ MulticopterPositionControl::task_main()
 
 				if (_run_alt_control) {
 					if (OUT_FENCE == true || FOLLOW_MODE == true){
-						_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2) + _target_sub.get().vz;
+						_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2) + _target.vz;
 					} else {
 						_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
 					}
