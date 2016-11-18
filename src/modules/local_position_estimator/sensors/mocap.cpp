@@ -20,6 +20,7 @@ void BlockLocalPositionEstimator::mocapInit()
 		_mocapStats.reset();
 		return;
 	}
+	_mocapOrigin = Vector3f(.0f, .0f, .0f);
 #ifdef ONLY_MOCAP
 	mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap position: "
 				     "%5.2f, %5.2f, %5.2f",
