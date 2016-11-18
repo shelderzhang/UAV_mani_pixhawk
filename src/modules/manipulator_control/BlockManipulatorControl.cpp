@@ -223,12 +223,8 @@ void BlockManipulatorControl::control()
 			Vector3f R_y = (R_z % R_x).normalized();
 
 			Dcmf R;
-//			R.setCol(0, R_x);
-//			R.setCol(1, R_y);
-//			R.setCol(2, R_z);
-
-			R.setCol(0, R_y);
-			R.setCol(1, -R_x);
+			R.setCol(0, R_x);
+			R.setCol(1, R_y);
 			R.setCol(2, R_z);
 
 			Eulerf euler(R);
