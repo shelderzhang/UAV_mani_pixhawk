@@ -84,6 +84,7 @@
 #include <systemlib/systemlib.h>
 #include <systemlib/mavlink_log.h>
 #include <mathlib/mathlib.h>
+#include <matrix/Matrix.hpp>
 #include <lib/geo/geo.h>
 #include <platforms/px4_defines.h>
 
@@ -92,6 +93,10 @@
 // blocks.hpp include Subscriptions.hpp and Publications.hpp
 #include <controllib/blocks.hpp>
 #include <controllib/block/BlockParam.hpp>
+
+#include "manipulator_control/BlockManipulatorControl.hpp"
+
+using namespace matrix;
 
 #define TILT_COS_MAX	0.7f
 #define SIGMA			0.000001f
@@ -104,14 +109,13 @@ static bool OUT_FENCE = false;
 /*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
 static bool FOLLOW_MODE = true;
 
+static float pos_sp_condition[4] = { 0.4f, 0.02f,
+		30.0f / 180.0f * (float)M_PI, 45.0f / 180.0f * (float)M_PI};
+enum {R = 0, r, ANGLE_MIN, ANGLE_MAX};
+
 enum {MIN = 0, MAX};
-static float BALL_RING_RANGE[2] = {0.4f, 0.42f};
+static orb_advert_t mavlink_log_pub = nullptr;
 
-enum {SAFETY = 0, OPERA_LOW, OPERA_HIG = 2};
-static float HEIGHT_ABOVE_TARGET[3] = {0.10f, 0.2f, 0.22f};
-
-static math::Vector<3> MANI_OFFSET(-0.0183f, 0.0003f, 0.1396f);
-static math::Vector<3> MANI_FIRST_JOINT(0, 0, 0.109);
 /**
  * Multicopter position control app start / stop handling function
  *
@@ -1018,8 +1022,9 @@ MulticopterPositionControl::cross_sphere_line(const math::Vector<3> &sphere_c, f
 void MulticopterPositionControl::control_auto(float dt)
 {
 	static uint64_t print_time = hrt_absolute_time();
-
-	bool print =  (hrt_absolute_time() - print_time > 500000);
+	uint64_t now = hrt_absolute_time();
+	bool print =  (now - print_time > 500000);
+	if (print) print_time = now;
 
 	/* reset position setpoint on AUTO mode activation or if we are not in MC mode */
 	if (!_mode_auto || !_vehicle_status.is_rotary_wing) {
@@ -1037,48 +1042,38 @@ void MulticopterPositionControl::control_auto(float dt)
 /*used to control in motion capture system -bdai<1 Nov 2016>*/
 #if true
 	/*subscribe target position -bdai<1 Nov 2016>*/
-	math::Vector<3> target_pos(_target.x, _target.y, _target.z);
-	math::Vector<3> pos_first_joint = _pos + _R * (MANI_FIRST_JOINT + MANI_OFFSET);
-	if (print){
-		warnx("___pos x:%8.4f, y:%8.4f, z:%8.4f",(double)_pos(0),(double)_pos(1),(double)_pos(2));
-		warnx("target x:%8.4f, y:%8.4f, z:%8.4f",(double)target_pos(0),
-				(double)target_pos(1),(double)target_pos(2));
-	}
-	/*if uav is below target safety level-bdai<10 Nov 2016>*/
-
-	math::Vector<3> err_sp(.0f, .0f, .0f);
-
-	if(target_pos(2) - pos_first_joint(2) < HEIGHT_ABOVE_TARGET[SAFETY]) {
-		/*distance in xy plane -bdai<10 Nov 2016>*/
-		math::Vector<3> xy_distance(target_pos(0) - pos_first_joint(0),
-				target_pos(1) - pos_first_joint(1), .0f);
-
-		/*constrain in two cylindrical surface -bdai<17 Nov 2016>*/
-		float xy_radius = xy_distance.length();
-		if (xy_radius > BALL_RING_RANGE[MAX]) {
-			err_sp = xy_distance * BALL_RING_RANGE[MIN] +
-					math::Vector<3>(0.0f, 0.0f, -HEIGHT_ABOVE_TARGET[OPERA_HIG]);
-		} else if (xy_radius < BALL_RING_RANGE[MIN]) {
-			err_sp = xy_distance * BALL_RING_RANGE[MAX] +
-					math::Vector<3>(0.0f, 0.0f, -HEIGHT_ABOVE_TARGET[OPERA_HIG]);
-		} else {
-			err_sp = math::Vector<3>(0.0f, 0.0f, -HEIGHT_ABOVE_TARGET[OPERA_HIG]);
+	Vector3f target_pos(_target.x, _target.y, _target.z);
+	Dcmf R_BN;
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			R_BN(i,j) = _R(i,j);
 		}
-	/*uav is up target safety level -bdai<10 Nov 2016>*/
+	}
+	Vector3f pos(_pos(0), _pos(1), _pos(2));
+	Vector3f pos_first_joint = pos +  R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);
+
+	Vector3f direction = (pos_first_joint - target_pos).normalized();
+	Vector3f r = Vector3f(0.0f, 0.0f, 1.0f) % direction;
+
+	if (-direction(2) < sinf(pos_sp_condition[ANGLE_MIN])){
+		Quatf q;
+		q.from_axis_angle(r, (float)M_PI / 2.0f + pos_sp_condition[ANGLE_MIN]);
+		Dcmf R(q);
+		direction = R * Vector3f(0.0f, 0.0f, 1.0f);
+	} else if (-direction(2) > sinf(pos_sp_condition[ANGLE_MAX])) {
+		Quatf q;
+		q.from_axis_angle(r, (float)M_PI / 2.0f + pos_sp_condition[ANGLE_MAX]);
+		Dcmf R(q);
+		direction = R * Vector3f(0.0f, 0.0f, 1.0f);
+	}
+
+	Vector3f pos_sp = target_pos + direction * pos_sp_condition[R];
+	if ((pos_first_joint - pos_sp).norm() > pos_sp_condition[R]) {
+		_pos_sp = math::Vector<3>(pos_sp(0), pos_sp(1), pos_sp(2));
 	} else {
-		float radius = (pos_first_joint - target_pos).length();
-		if (radius < BALL_RING_RANGE[MIN]) {
-			err_sp = (target_pos - pos_first_joint).normalized() * BALL_RING_RANGE[MAX];
-		}
-		else if (radius > BALL_RING_RANGE[MAX]) {
-			err_sp = (target_pos - pos_first_joint).normalized() * BALL_RING_RANGE[MIN];
-		} else {
-			err_sp = math::Vector<3>(.0f, .0f, .0f);
-		}
+		_pos_sp = _pos;
 	}
 
-	_pos_sp = _pos + (target_pos - pos_first_joint) - err_sp;
-	/*constrain position setpoint in electric fence -bdai<1 Nov 2016>*/
 	for (int i = 0; i < 3; i++){
 		if (_pos_sp(i) < ELEC_FENCE[i][MIN]){
 			_pos_sp(i) = ELEC_FENCE[i][MIN];
@@ -1091,21 +1086,15 @@ void MulticopterPositionControl::control_auto(float dt)
 
 	/*calculate yaw  -bdai<17 Nov 2016>*/
 
-	math::Vector<3> direction = (target_pos - _pos).normalized();
+	direction = (target_pos - pos).normalized();
 	/*if there are too close with target -bdai<17 Nov 2016>*/
 	if (math::Vector<3>(direction(0), direction(1), 0).length() > sinf(15 / 180 * M_PI)) {
 		_att_sp.yaw_body = atan2f(direction(1), direction(0));
 	}
 
-	if (print){
-		warnx("err_sp x:%8.4f, y:%8.4f, z:%8.4f",(double)err_sp(0),
-				(double)err_sp(1),(double)err_sp(2));
-		warnx("pos_sp x:%8.4f, y:%8.4f, z:%8.4f",(double)_pos_sp(0),
-						(double)_pos_sp(1),(double)_pos_sp(2));
-		warnx("yaw__%8.4f", (double)_att_sp.yaw_body);
-		print_time = hrt_absolute_time();
-	}
-
+	print_info(print, &mavlink_log_pub, "pos_sp x:%8.4f, y:%8.4f, z:%8.4f, yaw:%8.4f",
+			(double)_pos_sp(0), (double)_pos_sp(1), (double)_pos_sp(2),
+			(double)_att_sp.yaw_body);
 /*original code  -bdai<1 Nov 2016>*/
 #else
 	//Poll position setpoint
