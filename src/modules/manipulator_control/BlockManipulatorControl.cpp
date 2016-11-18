@@ -19,11 +19,12 @@ static float MANI_RANGE[6] = {0.36f, 0.46f,
 		-35.0f / 180.0f * (float)M_PI, 35.0f / 180.0f * (float)M_PI};
 enum {R_MIN = 0, R_MAX, THETA_MIN, THETA_MAX, PSI_MIN, PSI_MAX};
 
-
 /*relative rest duration before start grabbing 0.5s -bdai<13 Nov 2016>*/
 static uint32_t REST_DURATION = 1000000;	// 0.5 s
 static float ACCURACY = 0.03f;	//grab demand 0.05m accuracy
 static orb_advert_t mavlink_log_pub = nullptr;
+/*used for manipulator velocity cointrol -bdai<19 Nov 2016>*/
+static float MANI_P = 1.0f;
 
 BlockManipulatorControl::BlockManipulatorControl():
 	//this block has no parent, and has name MANC
@@ -204,7 +205,23 @@ void BlockManipulatorControl::control()
 			_relative_rest_time = _timeStamp;
 		}
 
-		/*calculate grabber rotation and euler angle -bdai<17 Nov 2016>*/
+
+		_manip_pub.get().x= mani_sp(0);
+		_manip_pub.get().y= mani_sp(1);
+		_manip_pub.get().z= mani_sp(2);
+
+		/*calculate grabber velosity -bdai<19 Nov 2016>*/
+		{
+			Vector3f mani_status(_mani_status_sub.get().x,
+				_mani_status_sub.get().y, _mani_status_sub.get().z);
+
+			Vector3f mani_vel  = MANI_P * (mani_sp - mani_status);
+			_manip_pub.get().vx = mani_vel(0);
+			_manip_pub.get().vy = mani_vel(1);
+			_manip_pub.get().vz = mani_vel(2);
+		}
+
+		/*calculate grabber euler angle -bdai<17 Nov 2016>*/
 		{
 			Vector3f R_z(-distance.normalized());
 			Vector3f R_x = (Vector3f(.0f, .0f, 1.0f) % R_z).normalized();
@@ -233,9 +250,6 @@ void BlockManipulatorControl::control()
 			_manip_pub.get().yaw = euler.psi();
 
 		}
-		_manip_pub.get().x= mani_sp(0);
-		_manip_pub.get().y= mani_sp(1);
-		_manip_pub.get().z= mani_sp(2);
 
 		/*hold on in init position -bdai<13 Nov 2016>*/
 		if (!_mani_triggered) {
@@ -250,6 +264,10 @@ void BlockManipulatorControl::control()
 		//grab success
 		if (_mani_status_sub.get().gripper_status == -1) {
 //			_manip_pub.get().z = _manip_pub.get().z - 0.05f;
+			mani_init_position();
+			_manip_pub.get().arm_enable = 1;
+			_manip_pub.update();
+			_manip_pub.update();
 //			_grabbed = true;
 			_grabbed = false;
 		}
@@ -280,6 +298,9 @@ void BlockManipulatorControl::mani_init_position()
 	_manip_pub.get().x = .0f;
 	_manip_pub.get().y = .0f;
 	_manip_pub.get().z = .0f;
+	_manip_pub.get().vx = .0f;
+	_manip_pub.get().vy = .0f;
+	_manip_pub.get().vz = .0f;
 	_manip_pub.get().arm_enable = 0;
 }
 
