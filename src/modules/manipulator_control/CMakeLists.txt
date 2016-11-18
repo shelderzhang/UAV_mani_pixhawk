@@ -8,7 +8,7 @@ px4_add_module(
 	MODULE modules__manipulator_control
 	MAIN manipulator_control
 	COMPILE_FLAGS -Os
-	STACK_MAIN 1200
+	STACK_MAIN 1500
 	SRCS
         manipulator_control_main.cpp
         BlockManipulatorControl.cpp

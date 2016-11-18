@@ -12,25 +12,18 @@
 
 #include "BlockManipulatorControl.hpp"
 
-#define print_info(print, ...) {\
-	if (print) {\
-		PX4_INFO(__VA_ARGS__);\
-	}\
-}
+static float GRAPPER_ANGLE_RANGE[2] = {-10.0f / 180.0f * (float)M_PI, 10.0f / 180.0f * (float)M_PI};
 
-static Vector3f MANI_OFFSET(-0.0183f, 0.0003f, 0.1396f);
-static Vector3f MANI_FIRST_JOINT(0, 0, 0.109);
-
-static float MANI_RANGE[6] = {0.35f, 0.42f,
-		-60.0f / 180.0f * (float)M_PI, 5.0f / 180.0f * (float)M_PI,
-		-45.0f / 180.0f * (float)M_PI, 45.0f / 180.0f * (float)M_PI};
+static float MANI_RANGE[6] = {0.36f, 0.46f,
+		-60.0f / 180.0f * (float)M_PI, -5.0f / 180.0f * (float)M_PI, //must set behind 0
+		-35.0f / 180.0f * (float)M_PI, 35.0f / 180.0f * (float)M_PI};
 enum {R_MIN = 0, R_MAX, THETA_MIN, THETA_MAX, PSI_MIN, PSI_MAX};
 
 
 /*relative rest duration before start grabbing 0.5s -bdai<13 Nov 2016>*/
 static uint32_t REST_DURATION = 1000000;	// 0.5 s
 static float ACCURACY = 0.03f;	//grab demand 0.05m accuracy
-
+static orb_advert_t mavlink_log_pub = nullptr;
 
 BlockManipulatorControl::BlockManipulatorControl():
 	//this block has no parent, and has name MANC
@@ -84,6 +77,7 @@ void BlockManipulatorControl::control()
 		return;
 	}
 
+//	usleep(50000);
 	_timeStamp = hrt_absolute_time();
 	bool print = (_timeStamp - _timePrint) / 1.0e6f > 0.5f;
 	if (print) _timePrint = _timeStamp;
@@ -95,13 +89,20 @@ void BlockManipulatorControl::control()
 	enableMani = true;
 
 	if (enableMani) {
+		Vector3f pos(_pos_sub.get().x, _pos_sub.get().y, _pos_sub.get().z);
+//		pos = Vector3f(.0f, .0f, .0f);
+		print_info(print, &mavlink_log_pub, "pos x:%8.4f, y:%8.4f, z:%8.4f",
+					(double)pos(0),
+					(double)pos(1),
+					(double)pos(2));
 		Vector3f target_pos(_target_sub.get().x, _target_sub.get().y, _target_sub.get().z);
+//		target_pos = Vector3f(0.25f, 0.0f, 0.5f);
 
 //		Quatf qq;
-//		qq.from_axis_angle(Vector3f(.0f, 1.0f, 0.0f), -1.5f + _timeStamp / 20.0f / 1.0e6f);
+//		qq.from_axis_angle(Vector3f(.0f, .0f, 1.0f), -2.5f + _timeStamp / 20.0f / 1.0e6f);
 //
-//		double t = (double)(-1.5f + _timeStamp / 20.0f / 1.0e6f) * 57.3;
-//		print_info(print,"angle %8.4f",t);
+////		double t = (double)(-1.5f + _timeStamp / 20.0f / 1.0e6f) * 57.3;
+//
 //		Dcmf RR(qq);
 //
 //		target_pos = RR * Vector3f(.4f, 0.0f, 0.0f)
@@ -111,19 +112,16 @@ void BlockManipulatorControl::control()
 //		Vector3f target_vel(_target_sub.get().vx, _target_sub.get().vy, _target_sub.get().vz);
 
 
-//		print_info(print, "target x:%8.4f, y:%8.4f, z:%8.4f",
-//			(double)target_pos(0),
-//			(double)target_pos(1),
-//			(double)target_pos(2));
-
-		Vector3f pos(_pos_sub.get().x, _pos_sub.get().y, _pos_sub.get().z);
-		pos = Vector3f(0.0f, 0.0f, .0f);
+		print_info(print, &mavlink_log_pub, "target x:%8.4f, y:%8.4f, z:%8.4f",
+			(double)target_pos(0),
+			(double)target_pos(1),
+			(double)target_pos(2));
 
 		Matrix3f R_att(_att_sub.get().R);
 		Vector3f distance = R_att.transpose() * (target_pos - pos) - MANI_OFFSET - MANI_FIRST_JOINT;
 
 		Vector3f mani_sp(distance);
-		print_info(print, "distance x:%8.4f, y:%8.4f, z:%8.4f",
+		print_info(print, &mavlink_log_pub, "distance x:%8.4f, y:%8.4f, z:%8.4f",
 				(double)distance(0),
 				(double)distance(1),
 				(double)distance(2));
@@ -147,17 +145,16 @@ void BlockManipulatorControl::control()
 		Vector3f mani_sp_nomolized = mani_sp.normalized();
 		float sin_theta = -mani_sp_nomolized(2);
 
-//		print_info(print, "sin_theta %8.4f", (double)sin_theta);
 		if ( sin_theta < sinf(MANI_RANGE[THETA_MIN])) {
-			Vector3f r = (projection_normlized % mani_sp).normalized();
+			Vector3f r = (mani_sp % projection_normlized).normalized();
 			Quatf q;
-			q.from_axis_angle(r, THETA_MIN);
+			q.from_axis_angle(r, MANI_RANGE[THETA_MIN]);
 			Dcmf R(q);
 			mani_sp = R * projection_normlized * mani_sp_norm;
 		} else if(sin_theta > sinf(MANI_RANGE[THETA_MAX])) {
-			Vector3f r = (projection_normlized % mani_sp).normalized();
+			Vector3f r = (mani_sp % projection_normlized).normalized();
 			Quatf q;
-			q.from_axis_angle(r, THETA_MAX);
+			q.from_axis_angle(r, MANI_RANGE[THETA_MAX]);
 			Dcmf R(q);
 			mani_sp = R * projection_normlized * mani_sp_norm;
 		} else {
@@ -182,7 +179,7 @@ void BlockManipulatorControl::control()
 
 		mani_sp = mani_sp + MANI_FIRST_JOINT;
 
-		print_info(print, "_in_range: %d", _in_range);
+		print_info(print, &mavlink_log_pub, "_in_range: %d", _in_range);
 		if (_in_range == 7){
 			if (!_mani_triggered){
 				_mani_triggered = true;	/*means manipulator can move now -bdai<13 Nov 2016>*/
@@ -207,6 +204,39 @@ void BlockManipulatorControl::control()
 			_relative_rest_time = _timeStamp;
 		}
 
+		/*calculate grabber rotation and euler angle -bdai<17 Nov 2016>*/
+		{
+			Vector3f R_z(-distance.normalized());
+			Vector3f R_x = (Vector3f(.0f, .0f, 1.0f) % R_z).normalized();
+			if (R_z(2) < sinf(GRAPPER_ANGLE_RANGE[0])) {
+				Quatf q;
+				q.from_axis_angle(R_x, (float)M_PI / 2.0f - GRAPPER_ANGLE_RANGE[0]);
+				Dcmf R(q);
+				R_z = R * Vector3f(.0f, .0f, 1.0f);
+			} else if (R_z(2) > sinf(GRAPPER_ANGLE_RANGE[1])) {
+				Quatf q;
+				q.from_axis_angle(R_x, (float)M_PI / 2.0f - GRAPPER_ANGLE_RANGE[1]);
+				Dcmf R(q);
+				R_z = R * Vector3f(.0f, .0f, 1.0f);
+			}
+
+			Vector3f R_y = (R_z % R_x).normalized();
+
+			Dcmf R;
+//			R.setCol(0, R_x);
+//			R.setCol(1, R_y);
+//			R.setCol(2, R_z);
+
+			R.setCol(0, R_y);
+			R.setCol(1, -R_x);
+			R.setCol(2, R_z);
+
+			Eulerf euler(R);
+			_manip_pub.get().roll = euler.phi();
+			_manip_pub.get().pitch = euler.theta();
+			_manip_pub.get().yaw = euler.psi();
+
+		}
 		_manip_pub.get().x= mani_sp(0);
 		_manip_pub.get().y= mani_sp(1);
 		_manip_pub.get().z= mani_sp(2);
@@ -216,8 +246,6 @@ void BlockManipulatorControl::control()
 			mani_init_position();
 		}
 
-//		print_info(print, "_relative_rest_time %llu, duration %llu",
-//				_relative_rest_time, _timeStamp - _relative_rest_time);
 		if (_relative_rest && (_timeStamp - _relative_rest_time) > REST_DURATION)
 		{
 			_manip_pub.get().arm_enable = 1;
@@ -225,8 +253,9 @@ void BlockManipulatorControl::control()
 
 		//grab success
 		if (_mani_status_sub.get().gripper_status == -1) {
-			_manip_pub.get().z = _manip_pub.get().z - 0.5f;
-			_grabbed = true;
+//			_manip_pub.get().z = _manip_pub.get().z - 0.05f;
+//			_grabbed = true;
+			_grabbed = false;
 		}
 
 	} else {
@@ -240,12 +269,14 @@ void BlockManipulatorControl::control()
 		_manip_pub.update();
 	}
 
-//	print_info(print, "enableMani %d, x %8.4f, y %8.4f, z %8.4f, arm_enable %d",
-//				enableMani,
-//				(double)_manip_pub.get().x,
-//				(double)_manip_pub.get().y,
-//				(double)_manip_pub.get().z,
-//				_manip_pub.get().arm_enable);
+	print_info(print, &mavlink_log_pub, "x %8.4f, y %8.4f, z %8.4f, roll %8.4f, pitch %8.4f, yaw %8.4f, arm_enable %d",
+				(double)_manip_pub.get().x,
+				(double)_manip_pub.get().y,
+				(double)_manip_pub.get().z,
+				(double)_manip_pub.get().roll,
+				(double)_manip_pub.get().pitch,
+				(double)_manip_pub.get().yaw,
+				_manip_pub.get().arm_enable);
 }
 
 void BlockManipulatorControl::mani_init_position()

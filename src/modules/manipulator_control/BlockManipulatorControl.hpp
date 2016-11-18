@@ -28,6 +28,14 @@
 using namespace matrix;
 using namespace control;
 
+#define print_info(print, ...) {\
+	if (print) {\
+		mavlink_and_console_log_info(__VA_ARGS__);\
+	}\
+}
+
+static Vector3f MANI_OFFSET(-0.0183f, 0.0003f, 0.1396f);
+static Vector3f MANI_FIRST_JOINT(0, 0, 0.109);
 
 class BlockManipulatorControl : public control::SuperBlock
 {
