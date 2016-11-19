@@ -25,6 +25,7 @@ static float ACCURACY = 0.03f;	//grab demand 0.05m accuracy
 static orb_advert_t mavlink_log_pub = nullptr;
 /*used for manipulator velocity cointrol -bdai<19 Nov 2016>*/
 static float MANI_P = 1.0f;
+static float MANI_MAX_VEL = 0.05f;
 
 BlockManipulatorControl::BlockManipulatorControl():
 	//this block has no parent, and has name MANC
@@ -216,9 +217,15 @@ void BlockManipulatorControl::control()
 				_mani_status_sub.get().y, _mani_status_sub.get().z);
 
 			Vector3f mani_vel  = MANI_P * (mani_sp - mani_status);
+
+			if (mani_vel.norm() > MANI_MAX_VEL){
+				mani_vel = mani_vel.normalized() * MANI_MAX_VEL;
+			}
+
 			_manip_pub.get().vx = mani_vel(0);
 			_manip_pub.get().vy = mani_vel(1);
 			_manip_pub.get().vz = mani_vel(2);
+
 		}
 
 		/*calculate grabber euler angle -bdai<17 Nov 2016>*/
