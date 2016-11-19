@@ -141,6 +141,16 @@ int px4_daemon_thread_main(int argc, char *argv[])
 	while (!thread_should_exit) {
 		warnx("Hello daemon!\n");
 		sleep(10);
+
+		int int_num = 25523300;
+
+		warnx("int is %x", int_num);
+
+		char num[4];
+		memcpy(&num, &int_num, 4);
+
+		warnx("char is %x \t %x \t %x \t %x ", num[0], num[1], num[2], num[3]);
+
 	}
 
 	warnx("[daemon] exiting.\n");

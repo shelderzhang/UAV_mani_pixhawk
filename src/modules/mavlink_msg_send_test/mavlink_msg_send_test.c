@@ -159,15 +159,15 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 		mavros_data.timestamp = hrt_absolute_time();
 		mavros_data.x = 0.1f;
 		mavros_data.y = 0.25f;
-		mavros_data.z = 0.1f;
-		mavros_data.arm_enable =1;
+		mavros_data.z = 0.4f;
+		mavros_data.arm_enable =2;
 		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
-		sleep(10);
+		sleep(5);
 		mavros_data.timestamp = hrt_absolute_time();
-		mavros_data.x = -0.1f;
-		mavros_data.y = 0.25f;
-		mavros_data.z = 0.1f;
-		mavros_data.arm_enable =1;
+		mavros_data.x = 0.0f;
+		mavros_data.y = 0.0f;
+		mavros_data.z = 0.0f;
+		mavros_data.arm_enable =2;
 		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
 		sleep(5);
 	}

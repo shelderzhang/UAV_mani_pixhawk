@@ -175,7 +175,7 @@ MavlinkReceiver::handle_message_target_endeff_frame(mavlink_message_t *msg)
     f.roll_rate = target_endeff_frame_data.roll_rate;
     f.pitch_rate = target_endeff_frame_data.pitch_rate;
     f.yaw_rate = target_endeff_frame_data.yaw_rate;
-    f.arm_enable=1;
+    f.arm_enable=target_endeff_frame_data.arm_enable;
     if (_target_endeff_frame_pub == nullptr) {
     	_target_endeff_frame_pub = orb_advertise(ORB_ID(target_endeff_frame), &f);
 
@@ -245,8 +245,8 @@ MavlinkReceiver::handle_message_endeff_frame_status(mavlink_message_t *msg)
     f.roll_rate = endeff_frame_status_data.roll_rate;
     f.pitch_rate = endeff_frame_status_data.pitch_rate;
     f.yaw_rate = endeff_frame_status_data.yaw_rate;
-    f.arm_enable=1;
-	f.gripper_status=1;
+    f.arm_enable=endeff_frame_status_data.arm_enable;
+	f.gripper_status=endeff_frame_status_data.gripper_status;
     if (_endeff_frame_status_pub == nullptr) {
     	_endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &f);
 
