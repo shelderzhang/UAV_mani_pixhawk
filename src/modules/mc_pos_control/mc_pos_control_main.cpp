@@ -94,6 +94,7 @@
 #include <controllib/blocks.hpp>
 #include <controllib/block/BlockParam.hpp>
 
+#include <uORB/topics/pid_err.h>
 #include "manipulator_control/BlockManipulatorControl.hpp"
 
 using namespace matrix;
@@ -169,6 +170,7 @@ private:
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
+	orb_advert_t	_pid_err_sub;
 
 	orb_id_t _attitude_setpoint_id;
 
@@ -183,7 +185,8 @@ private:
 	struct position_setpoint_triplet_s		_pos_sp_triplet;	/**< vehicle global position setpoint triplet */
 	struct vehicle_local_position_setpoint_s	_local_pos_sp;		/**< vehicle local position setpoint */
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
-	struct target_info_s _target;
+	struct target_info_s	_target;
+	struct pid_err_s	_pid_err;
 
 	control::BlockParamFloat _manual_thr_min;
 	control::BlockParamFloat _manual_thr_max;
@@ -405,6 +408,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
 	_global_vel_sp_pub(nullptr),
+	_pid_err_sub(nullptr),
 	_attitude_setpoint_id(0),
 	_vehicle_status{},
 	_vehicle_land_detected{},
@@ -1350,6 +1354,18 @@ MulticopterPositionControl::task_main()
 
 	hrt_abstime t_prev = 0;
 
+	math::Vector<3> pos_err, pos_err_p, vel_ff;
+	pos_err.zero();
+	pos_err_p.zero();
+	vel_ff.zero();
+
+	math::Vector<3> vel_err, vel_err_p, vel_err_i, vel_err_d;
+	vel_err.zero();
+	vel_err_p.zero();
+	vel_err_i.zero();
+	vel_err_d.zero();
+
+
 	math::Vector<3> thrust_int;
 	thrust_int.zero();
 
@@ -1481,6 +1497,7 @@ MulticopterPositionControl::task_main()
 				/* manual control */
 				control_manual(dt);
 				_mode_auto = false;
+//				warnx("manual");
 
 			} else if (_control_mode.flag_control_offboard_enabled) {
 				/* offboard control */
@@ -1555,17 +1572,21 @@ MulticopterPositionControl::task_main()
 			} else {
 
 				/* position error */
-				math::Vector<3> pos_err = _pos_sp - _pos;
+				pos_err = _pos_sp - _pos;
 
 				/* run position & altitude controllers, if enabled (otherwise use already computed velocity setpoints) */
 				if (_run_pos_control) {
+					pos_err_p(0) = pos_err(0) * _params.pos_p(0);
+					pos_err_p(1) = pos_err(1) * _params.pos_p(1);
 					if (_mode_auto ==  true && OUT_FENCE == false && FOLLOW_MODE == true){
-						_vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0) + _target.vx;
-						_vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1) + _target.vy;
+						vel_ff(0) = _target.vx;
+						vel_ff(1) = _target.vy;
 					} else {
-						_vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0);
-						_vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1);
+						vel_ff(0) = 0;
+						vel_ff(1) = 0;
 					}
+					_vel_sp(0) = pos_err_p(0) + vel_ff(0);
+					_vel_sp(1) = pos_err_p(1) + vel_ff(1);
 				}
 
 				// guard against any bad velocity values
@@ -1609,11 +1630,13 @@ MulticopterPositionControl::task_main()
 				}
 
 				if (_run_alt_control) {
+					pos_err_p(2) = pos_err(2) * _params.pos_p(2);
 					if (_mode_auto ==  true && OUT_FENCE == false && FOLLOW_MODE == true){
-						_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2) + _target.vz;
+						vel_ff(2) = _target.vz;
 					} else {
-						_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
+						vel_ff(2) = 0;
 					}
+					_vel_sp(2) = pos_err_p(2) + vel_ff(2);
 				}
 
 				/* make sure velocity setpoint is saturated in xy*/
@@ -1773,7 +1796,7 @@ MulticopterPositionControl::task_main()
 					}
 
 					/* velocity error */
-					math::Vector<3> vel_err = _vel_sp - _vel;
+					vel_err = _vel_sp - _vel;
 
 					// check if we have switched from a non-velocity controlled mode into a velocity controlled mode
 					// if yes, then correct xy velocity setpoint such that the attitude setpoint is continuous
@@ -1803,7 +1826,10 @@ MulticopterPositionControl::task_main()
 						thrust_sp = math::Vector<3>(_pos_sp_triplet.current.a_x, _pos_sp_triplet.current.a_y, _pos_sp_triplet.current.a_z);
 
 					} else {
-						thrust_sp = vel_err.emult(_params.vel_p) + _vel_err_d.emult(_params.vel_d) + thrust_int;
+						vel_err_p = vel_err.emult(_params.vel_p);
+						vel_err_d = _vel_err_d.emult(_params.vel_d);
+						vel_err_i = thrust_int;
+						thrust_sp = vel_err_p + vel_err_i + vel_err_d;
 					}
 
 					if (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF
@@ -2098,8 +2124,35 @@ MulticopterPositionControl::task_main()
 				_local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &_local_pos_sp);
 			}
 
+			_pid_err.x = pos_err(0);
+			_pid_err.x_p = pos_err_p(0);
+			_pid_err.vx = vel_err(0);
+			_pid_err.vx_p = vel_err_p(0);
+			_pid_err.vx_i = vel_err_i(0);
+			_pid_err.vx_d = vel_err_d(0);
+
+			_pid_err.y = pos_err(1);
+			_pid_err.y_p = pos_err_p(1);
+			_pid_err.vy = vel_err(1);
+			_pid_err.vy_p = vel_err_p(1);
+			_pid_err.vy_i = vel_err_i(1);
+			_pid_err.vy_d = vel_err_d(1);
+
+			_pid_err.z = pos_err(2);
+			_pid_err.z_p = pos_err_p(2);
+			_pid_err.vz = vel_err(2);
+			_pid_err.vz_p = vel_err_p(2);
+			_pid_err.vz_i = vel_err_i(2);
+			_pid_err.vz_d = vel_err_d(2);
+
+			/* publish pid error */
+			if (_pid_err_sub != nullptr) {
+				orb_publish(ORB_ID(pid_err), _pid_err_sub, &_pid_err);
+			} else {
+				_pid_err_sub = orb_advertise(ORB_ID(pid_err), &_pid_err);
+			}
+
 		} else {
-			/* position controller disabled, reset setpoints */
 			_reset_alt_sp = true;
 			_reset_pos_sp = true;
 			_mode_auto = false;

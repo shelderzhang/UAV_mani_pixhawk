@@ -113,6 +113,8 @@
 #include <uORB/topics/cpuload.h>
 // By LZ
 #include <uORB/topics/target_info.h>
+/*used to store pid err -bdai<20 Nov 2016>*/
+#include <uORB/topics/pid_err.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1227,6 +1229,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_gps_position_s dual_gps_pos;
 		// By LZ
 		struct target_info_s target_info;
+
+		struct pid_err_s pid_err;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1290,6 +1294,11 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_LOAD_s log_LOAD;
 			// By LZ
 			struct log_TARI_s log_TARI;
+
+			struct log_ERRX_s log_ERRX;
+			struct log_ERRX_s log_ERRY;
+			struct log_ERRX_s log_ERRZ;
+
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1341,6 +1350,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int cpuload_sub;
 		// By LZ
 		int tari_sub;
+		/*bdai -bdai<20 Nov 2016>*/
+		int pid_err_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1385,6 +1396,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.cpuload_sub = -1;
 	// By LZ
 	subs.tari_sub = -1;
+
+	subs.pid_err_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2325,6 +2338,36 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_TARI.pitch = buf.target_info.pitch;
 			log_msg.body.log_TARI.yaw = buf.target_info.yaw;
 			LOGBUFFER_WRITE_AND_COUNT(TARI);
+		}
+
+		/* ---PID ERROR --- */
+		if (copy_if_updated(ORB_ID(pid_err), &subs.pid_err_sub, &buf.pid_err)){
+			log_msg.msg_type = LOG_ERRX_MSG;
+			log_msg.body.log_ERRX.p = buf.pid_err.x;
+			log_msg.body.log_ERRX.p_p= buf.pid_err.x_p;
+			log_msg.body.log_ERRX.v = buf.pid_err.vx;
+			log_msg.body.log_ERRX.v_p= buf.pid_err.vx_p;
+			log_msg.body.log_ERRX.v_i= buf.pid_err.vx_i;
+			log_msg.body.log_ERRX.v_d= buf.pid_err.vx_d;
+			LOGBUFFER_WRITE_AND_COUNT(ERRX);
+
+			log_msg.msg_type = LOG_ERRY_MSG;
+			log_msg.body.log_ERRY.p = buf.pid_err.y;
+			log_msg.body.log_ERRY.p_p= buf.pid_err.y_p;
+			log_msg.body.log_ERRY.v = buf.pid_err.vy;
+			log_msg.body.log_ERRY.v_p= buf.pid_err.vy_p;
+			log_msg.body.log_ERRY.v_i= buf.pid_err.vy_i;
+			log_msg.body.log_ERRY.v_d= buf.pid_err.vy_d;
+			LOGBUFFER_WRITE_AND_COUNT(ERRX);
+
+			log_msg.msg_type = LOG_ERRZ_MSG;
+			log_msg.body.log_ERRZ.p = buf.pid_err.z;
+			log_msg.body.log_ERRZ.p_p= buf.pid_err.z_p;
+			log_msg.body.log_ERRZ.v = buf.pid_err.vz;
+			log_msg.body.log_ERRZ.v_p= buf.pid_err.vz_p;
+			log_msg.body.log_ERRZ.v_i= buf.pid_err.vz_i;
+			log_msg.body.log_ERRZ.v_d= buf.pid_err.vz_d;
+			LOGBUFFER_WRITE_AND_COUNT(ERRX);
 		}
 
 		pthread_mutex_lock(&logbuffer_mutex);
