@@ -554,8 +554,6 @@ protected:
         	_msg_data.arm_enable = _data.arm_enable;
         	_msg_data.gripper_status = _data.gripper_status;
 
-
-
         	mavlink_msg_endeff_frame_status_send_struct(_mavlink->get_channel(), &_msg_data);
         }
     }
