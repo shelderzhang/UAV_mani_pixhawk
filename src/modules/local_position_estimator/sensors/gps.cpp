@@ -143,7 +143,7 @@ void BlockLocalPositionEstimator::gpsCorrect()
 	float t_delay = 0;
 	int i_hist = 0;
 
-	for (i_hist = 1; i_hist < HIST_LEN; i_hist++) {
+	for (i_hist = 1; i_hist < GPS_HIST_LEN; i_hist++) {
 		t_delay = 1.0e-6f * (_timeStamp - _tDelay.get(i_hist)(0, 0));
 
 		if (t_delay > _gps_delay.get()) {

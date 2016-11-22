@@ -7,3 +7,7 @@ float32[4] q			# Estimated attitude as quaternion
 float32 x			# X position in meters in NED earth-fixed frame
 float32 y			# Y position in meters in NED earth-fixed frame
 float32 z			# Z position in meters in NED earth-fixed frame (negative altitude)
+
+float32 vx
+float32 vy
+float32 vz

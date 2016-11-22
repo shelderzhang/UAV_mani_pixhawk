@@ -247,6 +247,39 @@ PARAM_DEFINE_INT32(LPE_VIS_ON, 1);
 PARAM_DEFINE_FLOAT(LPE_VIC_P, 0.05f);
 
 /**
+ * Vicon velocity standard deviation.
+ *
+ * @group Local Position Estimator
+ * @unit m/s
+ * @min 0.001
+ * @max 0.1
+ * @decimal 3
+ */
+PARAM_DEFINE_FLOAT(LPE_VIC_V, 0.02);
+
+/**
+ * VIC position delay compensaton
+ *
+ * @group Local Position Estimator
+ * @unit sec
+ * @min 0
+ * @max 0.5
+ * @decimal 2
+ */
+PARAM_DEFINE_FLOAT(LPE_VIC_P_DELAY, 0.05f);
+
+/**
+ * VIC velocity compensaton
+ *
+ * @group Local Position Estimator
+ * @unit sec
+ * @min 0
+ * @max 0.8
+ * @decimal 2
+ */
+PARAM_DEFINE_FLOAT(LPE_VIC_V_DELAY, 0.15f);
+
+/**
  * Position propagation noise density
  *
  * Increase to trust measurements more.
