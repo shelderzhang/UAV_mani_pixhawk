@@ -38,3 +38,16 @@ if param compare PWM_DISARMED 0
 then
 	param set PWM_DISARMED 900
 fi
+
+# using for motion capture system
+set USING_MOCAP yes
+
+# there must a blank between [ ** ]
+if [ $USING_MOCAP == yes -a $AUTOCNF == yes ]
+then
+	param set ATT_EXT_HDG_M 2
+	param set LPE_VIC_P 0.005
+	param set LPE_PN_P 0.01
+fi
+unset USING_MOCAP
+

@@ -79,20 +79,43 @@
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/vehicle_land_detected.h>
 
+#include <uORB/topics/target_info.h>
+
 #include <systemlib/systemlib.h>
 #include <systemlib/mavlink_log.h>
 #include <mathlib/mathlib.h>
+#include <matrix/Matrix.hpp>
 #include <lib/geo/geo.h>
 #include <platforms/px4_defines.h>
 
+#include <uORB/Publication.hpp>
+#include <uORB/Subscription.hpp>
+// blocks.hpp include Subscriptions.hpp and Publications.hpp
 #include <controllib/blocks.hpp>
 #include <controllib/block/BlockParam.hpp>
+
+#include <uORB/topics/pid_err.h>
+#include "manipulator_control/BlockManipulatorControl.hpp"
+
+using namespace matrix;
 
 #define TILT_COS_MAX	0.7f
 #define SIGMA			0.000001f
 #define MIN_DIST		0.01f
 #define MANUAL_THROTTLE_MAX_MULTICOPTER	0.9f
 #define ONE_G	9.8066f
+
+static float ELEC_FENCE[3][2] = {-2.5f, 2.5f, -2.5f, 2.5f, -0.45f -2.0f};
+static bool OUT_FENCE = false;
+/*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
+static bool FOLLOW_MODE = true;
+
+static float pos_sp_condition[4] = { 0.4f, 0.02f,
+		30.0f / 180.0f * (float)M_PI, 45.0f / 180.0f * (float)M_PI};
+enum {R = 0, r, ANGLE_MIN, ANGLE_MAX};
+
+enum {MIN = 0, MAX};
+static orb_advert_t mavlink_log_pub = nullptr;
 
 /**
  * Multicopter position control app start / stop handling function
@@ -104,6 +127,7 @@ extern "C" __EXPORT int mc_pos_control_main(int argc, char *argv[]);
 class MulticopterPositionControl : public control::SuperBlock
 {
 public:
+
 	/**
 	 * Constructor
 	 */
@@ -138,10 +162,15 @@ private:
 	int		_pos_sp_triplet_sub;		/**< position setpoint triplet */
 	int		_local_pos_sp_sub;		/**< offboard local position setpoint */
 	int		_global_vel_sp_sub;		/**< offboard global velocity setpoint */
+	int		_target_sub;
+	bool	_target_updated;
+	// subscriptions
+
 
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
+	orb_advert_t	_pid_err_sub;
 
 	orb_id_t _attitude_setpoint_id;
 
@@ -156,6 +185,8 @@ private:
 	struct position_setpoint_triplet_s		_pos_sp_triplet;	/**< vehicle global position setpoint triplet */
 	struct vehicle_local_position_setpoint_s	_local_pos_sp;		/**< vehicle local position setpoint */
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
+	struct target_info_s	_target;
+	struct pid_err_s	_pid_err;
 
 	control::BlockParamFloat _manual_thr_min;
 	control::BlockParamFloat _manual_thr_max;
@@ -352,6 +383,7 @@ namespace pos_control
 {
 
 MulticopterPositionControl	*g_control;
+
 }
 
 MulticopterPositionControl::MulticopterPositionControl() :
@@ -370,11 +402,13 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_local_pos_sub(-1),
 	_pos_sp_triplet_sub(-1),
 	_global_vel_sp_sub(-1),
-
+	_target_sub(-1),
+	_target_updated(false),
 	/* publications */
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
 	_global_vel_sp_pub(nullptr),
+	_pid_err_sub(nullptr),
 	_attitude_setpoint_id(0),
 	_vehicle_status{},
 	_vehicle_land_detected{},
@@ -387,6 +421,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_pos_sp_triplet{},
 	_local_pos_sp{},
 	_global_vel_sp{},
+	_target{},
 	_manual_thr_min(this, "MANTHR_MIN"),
 	_manual_thr_max(this, "MANTHR_MAX"),
 	_vel_x_deriv(this, "VELD"),
@@ -693,6 +728,13 @@ MulticopterPositionControl::poll_subscriptions()
 	if (updated) {
 		orb_copy(ORB_ID(vehicle_local_position), _local_pos_sub, &_local_pos);
 	}
+
+	orb_check(_target_sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(target_info), _target_sub, &_target);
+		_target_updated = true;
+	}
 }
 
 float
@@ -986,6 +1028,11 @@ MulticopterPositionControl::cross_sphere_line(const math::Vector<3> &sphere_c, f
 
 void MulticopterPositionControl::control_auto(float dt)
 {
+	static uint64_t print_time = hrt_absolute_time();
+	uint64_t now = hrt_absolute_time();
+	bool print =  (now - print_time > 100000);
+	if (print) print_time = now;
+
 	/* reset position setpoint on AUTO mode activation or if we are not in MC mode */
 	if (!_mode_auto || !_vehicle_status.is_rotary_wing) {
 		if (!_mode_auto) {
@@ -999,6 +1046,76 @@ void MulticopterPositionControl::control_auto(float dt)
 		reset_alt_sp();
 	}
 
+/*used to control in motion capture system -bdai<1 Nov 2016>*/
+#if true
+
+	if (!_target_updated){
+		_pos_sp = _pos;
+		_att_sp.yaw_body = _yaw;
+		return;
+	}
+
+	/*subscribe target position -bdai<1 Nov 2016>*/
+	Vector3f target_pos(_target.x, _target.y, _target.z);
+	Dcmf R_BN;
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			R_BN(i,j) = _R(i,j);
+		}
+	}
+	Vector3f pos(_pos(0), _pos(1), _pos(2));
+	Vector3f pos_first_joint = pos +  R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);
+
+	Vector3f direction = (pos_first_joint - target_pos).normalized();
+	Vector3f r = Vector3f(0.0f, 0.0f, 1.0f) % direction;
+
+	if (-direction(2) < sinf(pos_sp_condition[ANGLE_MIN])){
+		Quatf q;
+		q.from_axis_angle(r, (float)M_PI / 2.0f + pos_sp_condition[ANGLE_MIN]);
+		Dcmf R(q);
+		direction = R * Vector3f(0.0f, 0.0f, 1.0f);
+	} else if (-direction(2) > sinf(pos_sp_condition[ANGLE_MAX])) {
+		Quatf q;
+		q.from_axis_angle(r, (float)M_PI / 2.0f + pos_sp_condition[ANGLE_MAX]);
+		Dcmf R(q);
+		direction = R * Vector3f(0.0f, 0.0f, 1.0f);
+	}
+
+	Vector3f err_sp = target_pos - pos_first_joint + direction * pos_sp_condition[R];
+
+	if ((pos_first_joint - err_sp).norm() > pos_sp_condition[R]) {
+		_pos_sp = _pos + math::Vector<3>(err_sp(0), err_sp(1), err_sp(2));
+	} else {
+		_pos_sp = _pos;
+	}
+
+	for (int i = 0; i < 3; i++){
+		if (_pos_sp(i) < ELEC_FENCE[i][MIN]){
+			_pos_sp(i) = ELEC_FENCE[i][MIN];
+			OUT_FENCE = true;
+		} else if (_pos_sp(i) > ELEC_FENCE[i][MAX]){
+			_pos_sp(i) = ELEC_FENCE[i][MAX];
+			OUT_FENCE = true;
+		}
+	}
+
+	/*calculate yaw  -bdai<17 Nov 2016>*/
+
+	direction = (target_pos - pos).normalized();
+	/*if there are too close with target -bdai<17 Nov 2016>*/
+	if (math::Vector<3>(direction(0), direction(1), 0).length() > sinf(15 / 180 * M_PI)) {
+		_att_sp.yaw_body = atan2f(direction(1), direction(0));
+	}
+
+	print_info(print, &mavlink_log_pub, "pos_ x:%8.3f, y:%8.3f, z:%8.3f",
+				(double)_pos(0), (double)_pos(1), (double)_pos(2));
+	print_info(print, &mavlink_log_pub, "targ x:%8.3f, y:%8.3f, z:%8.3f",
+				(double)target_pos(0), (double)target_pos(1), (double)target_pos(2));
+	print_info(print, &mavlink_log_pub, "p_sp x:%8.3f, y:%8.3f, z:%8.3f, yaw:%8.3f",
+			(double)_pos_sp(0), (double)_pos_sp(1), (double)_pos_sp(2),
+			(double)_att_sp.yaw_body);
+/*original code  -bdai<1 Nov 2016>*/
+#else
 	//Poll position setpoint
 	bool updated;
 	orb_check(_pos_sp_triplet_sub, &updated);
@@ -1192,6 +1309,8 @@ void MulticopterPositionControl::control_auto(float dt)
 	} else {
 		/* no waypoint, do nothing, setpoint was already reset */
 	}
+#endif
+
 }
 
 void
@@ -1213,6 +1332,7 @@ MulticopterPositionControl::task_main()
 	_pos_sp_triplet_sub = orb_subscribe(ORB_ID(position_setpoint_triplet));
 	_local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
 	_global_vel_sp_sub = orb_subscribe(ORB_ID(vehicle_global_velocity_setpoint));
+	_target_sub = orb_subscribe(ORB_ID(target_info));
 
 
 	parameters_update(true);
@@ -1223,6 +1343,9 @@ MulticopterPositionControl::task_main()
 	/* get an initial update for all sensor and status data */
 	poll_subscriptions();
 
+	/*get new data while defined use uORB::Subscriptions<class T> -bdai<10 Nov 2016>*/
+	updateSubscriptions();
+
 	bool reset_int_z = true;
 	bool reset_int_z_manual = false;
 	bool reset_int_xy = true;
@@ -1230,6 +1353,18 @@ MulticopterPositionControl::task_main()
 	bool was_armed = false;
 
 	hrt_abstime t_prev = 0;
+
+	math::Vector<3> pos_err, pos_err_p, vel_ff;
+	pos_err.zero();
+	pos_err_p.zero();
+	vel_ff.zero();
+
+	math::Vector<3> vel_err, vel_err_p, vel_err_i, vel_err_d;
+	vel_err.zero();
+	vel_err_p.zero();
+	vel_err_i.zero();
+	vel_err_d.zero();
+
 
 	math::Vector<3> thrust_int;
 	thrust_int.zero();
@@ -1355,12 +1490,14 @@ MulticopterPositionControl::task_main()
 			 * can disable this and run velocity controllers directly in this cycle */
 			_run_pos_control = true;
 			_run_alt_control = true;
+			OUT_FENCE = false;
 
 			/* select control source */
 			if (_control_mode.flag_control_manual_enabled) {
 				/* manual control */
 				control_manual(dt);
 				_mode_auto = false;
+//				warnx("manual");
 
 			} else if (_control_mode.flag_control_offboard_enabled) {
 				/* offboard control */
@@ -1370,6 +1507,7 @@ MulticopterPositionControl::task_main()
 			} else {
 				/* AUTO */
 				control_auto(dt);
+				_target_updated = false;
 			}
 
 			/* weather-vane mode for vtol: disable yaw control */
@@ -1432,10 +1570,23 @@ MulticopterPositionControl::task_main()
 				}
 
 			} else {
+
+				/* position error */
+				pos_err = _pos_sp - _pos;
+
 				/* run position & altitude controllers, if enabled (otherwise use already computed velocity setpoints) */
 				if (_run_pos_control) {
-					_vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0);
-					_vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1);
+					pos_err_p(0) = pos_err(0) * _params.pos_p(0);
+					pos_err_p(1) = pos_err(1) * _params.pos_p(1);
+					if (_mode_auto ==  true && OUT_FENCE == false && FOLLOW_MODE == true){
+						vel_ff(0) = _target.vx;
+						vel_ff(1) = _target.vy;
+					} else {
+						vel_ff(0) = 0;
+						vel_ff(1) = 0;
+					}
+					_vel_sp(0) = pos_err_p(0) + vel_ff(0);
+					_vel_sp(1) = pos_err_p(1) + vel_ff(1);
 				}
 
 				// guard against any bad velocity values
@@ -1479,7 +1630,13 @@ MulticopterPositionControl::task_main()
 				}
 
 				if (_run_alt_control) {
-					_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
+					pos_err_p(2) = pos_err(2) * _params.pos_p(2);
+					if (_mode_auto ==  true && OUT_FENCE == false && FOLLOW_MODE == true){
+						vel_ff(2) = _target.vz;
+					} else {
+						vel_ff(2) = 0;
+					}
+					_vel_sp(2) = pos_err_p(2) + vel_ff(2);
 				}
 
 				/* make sure velocity setpoint is saturated in xy*/
@@ -1639,7 +1796,7 @@ MulticopterPositionControl::task_main()
 					}
 
 					/* velocity error */
-					math::Vector<3> vel_err = _vel_sp - _vel;
+					vel_err = _vel_sp - _vel;
 
 					// check if we have switched from a non-velocity controlled mode into a velocity controlled mode
 					// if yes, then correct xy velocity setpoint such that the attitude setpoint is continuous
@@ -1669,7 +1826,10 @@ MulticopterPositionControl::task_main()
 						thrust_sp = math::Vector<3>(_pos_sp_triplet.current.a_x, _pos_sp_triplet.current.a_y, _pos_sp_triplet.current.a_z);
 
 					} else {
-						thrust_sp = vel_err.emult(_params.vel_p) + _vel_err_d.emult(_params.vel_d) + thrust_int;
+						vel_err_p = vel_err.emult(_params.vel_p);
+						vel_err_d = _vel_err_d.emult(_params.vel_d);
+						vel_err_i = thrust_int;
+						thrust_sp = vel_err_p + vel_err_i + vel_err_d;
 					}
 
 					if (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF
@@ -1964,8 +2124,35 @@ MulticopterPositionControl::task_main()
 				_local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &_local_pos_sp);
 			}
 
+			_pid_err.x = pos_err(0);
+			_pid_err.x_p = pos_err_p(0);
+			_pid_err.vx = vel_err(0);
+			_pid_err.vx_p = vel_err_p(0);
+			_pid_err.vx_i = vel_err_i(0);
+			_pid_err.vx_d = vel_err_d(0);
+
+			_pid_err.y = pos_err(1);
+			_pid_err.y_p = pos_err_p(1);
+			_pid_err.vy = vel_err(1);
+			_pid_err.vy_p = vel_err_p(1);
+			_pid_err.vy_i = vel_err_i(1);
+			_pid_err.vy_d = vel_err_d(1);
+
+			_pid_err.z = pos_err(2);
+			_pid_err.z_p = pos_err_p(2);
+			_pid_err.vz = vel_err(2);
+			_pid_err.vz_p = vel_err_p(2);
+			_pid_err.vz_i = vel_err_i(2);
+			_pid_err.vz_d = vel_err_d(2);
+
+			/* publish pid error */
+			if (_pid_err_sub != nullptr) {
+				orb_publish(ORB_ID(pid_err), _pid_err_sub, &_pid_err);
+			} else {
+				_pid_err_sub = orb_advertise(ORB_ID(pid_err), &_pid_err);
+			}
+
 		} else {
-			/* position controller disabled, reset setpoints */
 			_reset_alt_sp = true;
 			_reset_pos_sp = true;
 			_mode_auto = false;

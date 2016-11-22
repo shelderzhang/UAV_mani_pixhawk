@@ -625,6 +625,18 @@ struct log_LOAD_s {
 	float cpu_load;
 };
 
+/* --- PID ERROR, POS OUTPUT AND ATT OUTPUT--- */
+#define LOG_ERRX_MSG 62
+#define LOG_ERRY_MSG 63
+#define LOG_ERRZ_MSG 64
+struct log_ERRX_s {
+	float p;	/*position error -bdai<7 Oct 2016>*/
+	float p_p;
+	float v;
+	float v_p;
+	float v_i;
+	float v_d;
+};
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -646,6 +658,23 @@ struct log_PARM_s {
 	char name[16];
 	float value;
 };
+
+/* --- TARGET - INFORMATION --- */
+// By LZ
+#define LOG_TARI_MSG 132
+struct log_TARI_s {
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+	float roll;
+	float pitch;
+	float yaw;
+};
+
+
 #pragma pack(pop)
 
 // the lower type of initialisation is not supported in C++
@@ -714,11 +743,16 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(RPL6, "Qff", "Tasp,inAsp,trAsp"),
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
+	LOG_FORMAT(ERRX, "ffffff",  "p,p_p,v,v_p,v_i,v_d"),
+	LOG_FORMAT_S(ERRY, ERRX, "ffffff",  "p,p_p,v,v_p,v_i,v_d"),
+	LOG_FORMAT_S(ERRZ, ERRX, "ffffff",  "p,p_p,v,v_p,v_i,v_d"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),
 	LOG_FORMAT(VER, "NZ", "Arch,FwGit"),
-	LOG_FORMAT(PARM, "Nf", "Name,Value")
+	LOG_FORMAT(PARM, "Nf", "Name,Value"),
+	// By LZ
+	LOG_FORMAT(TARI, "fffffffff", "Tx,Ty,Tz,Tvx,Tvy,Tvz,Troll,Tpitch,Tyaw")
 };
 
 static const unsigned log_formats_num = sizeof(log_formats) / sizeof(log_formats[0]);

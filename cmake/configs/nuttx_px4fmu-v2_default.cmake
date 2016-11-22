@@ -181,6 +181,12 @@ set(config_module_list
 
 	# Hardware test
 	#examples/hwtest
+
+	# For MOCAP delay test
+	#modules/for_delay_test
+	
+	# For Manipulator control
+	modules/manipulator_control
 )
 
 set(config_extra_builtin_cmds

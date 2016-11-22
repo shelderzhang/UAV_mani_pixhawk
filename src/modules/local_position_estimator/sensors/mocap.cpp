@@ -1,13 +1,15 @@
-#include "../BlockLocalPositionEstimator.hpp"
 #include <systemlib/mavlink_log.h>
 #include <matrix/math.hpp>
+#include "../BlockLocalPositionEstimator.hpp"
 
 extern orb_advert_t mavlink_log_pub;
 
 // required number of samples for sensor
 // to initialize
-static const uint32_t 		REQ_MOCAP_INIT_COUNT = 20;
-static const uint32_t 		MOCAP_TIMEOUT =     200000;	// 0.2 s
+#ifndef ONLY_MOCAP
+static const uint32_t 		REQ_MOCAP_INIT_COUNT = 10;
+#endif
+static const uint32_t 		MOCAP_TIMEOUT =     500000;	// 0.5 s
 
 void BlockLocalPositionEstimator::mocapInit()
 {
@@ -18,7 +20,20 @@ void BlockLocalPositionEstimator::mocapInit()
 		_mocapStats.reset();
 		return;
 	}
+	_mocapOrigin = Vector3f(.0f, .0f, .0f);
+#ifdef ONLY_MOCAP
+	mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap position: "
+				     "%5.2f, %5.2f, %5.2f",
+					 double(y(0)),double(y(1)),double(y(2)));
+	_mocapInitialized = true;
+	_mocapFault = FAULT_NONE;
 
+	if (!_altOriginInitialized) {
+		_altOriginInitialized = true;
+		_altOrigin = _mocapOrigin(2);
+	}
+
+#else
 	// if finished
 	if (_mocapStats.getCount() > REQ_MOCAP_INIT_COUNT) {
 		_mocapOrigin = _mocapStats.getMean();
@@ -38,7 +53,9 @@ void BlockLocalPositionEstimator::mocapInit()
 			_altOrigin = _mocapOrigin(2);
 		}
 	}
+#endif
 }
+
 
 int BlockLocalPositionEstimator::mocapMeasure(Vector<float, n_y_mocap> &y)
 {
@@ -111,7 +128,7 @@ void BlockLocalPositionEstimator::mocapCheckTimeout()
 		if (_mocapInitialized) {
 			_mocapInitialized = false;
 			_mocapStats.reset();
-			mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap timeout ");
+			mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap timeout: %8.4f",(double)((_timeStamp - _time_last_mocap)*1e-6));
 		}
 	}
 }
