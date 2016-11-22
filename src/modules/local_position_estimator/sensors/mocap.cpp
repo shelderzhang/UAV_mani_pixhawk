@@ -63,6 +63,11 @@ int BlockLocalPositionEstimator::mocapMeasure(Vector<float, n_y_mocap> &y)
 	y(Y_mocap_x) = _sub_mocap.get().x;
 	y(Y_mocap_y) = _sub_mocap.get().y;
 	y(Y_mocap_z) = _sub_mocap.get().z;
+
+	y(Y_mocap_vx) = _sub_mocap.get().vx;
+	y(Y_mocap_vy) = _sub_mocap.get().vy;
+	y(Y_mocap_vz) = _sub_mocap.get().vz;
+
 	_mocapStats.update(y);
 	_time_last_mocap = _sub_mocap.get().timestamp;
 	return OK;
@@ -76,7 +81,10 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	if (mocapMeasure(y) != OK) { return; }
 
 	// make measurement relative to origin
-	y -= _mocapOrigin;
+	for (int i = 1; i<3; i++) {
+		/*minus macop position origin error -bdai<21 Nov 2016>*/
+		y(i) -= _mocapOrigin(i);
+	}
 
 	// mocap measurement matrix, measures position
 	Matrix<float, n_y_mocap, n_x> C;
@@ -84,6 +92,9 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	C(Y_mocap_x, X_x) = 1;
 	C(Y_mocap_y, X_y) = 1;
 	C(Y_mocap_z, X_z) = 1;
+	C(Y_mocap_vx, X_vx) = 1;
+	C(Y_mocap_vy, X_vy) = 1;
+	C(Y_mocap_vz, X_vz) = 1;
 
 	// noise matrix
 	Matrix<float, n_y_mocap, n_y_mocap> R;
@@ -94,9 +105,56 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	R(Y_mocap_y, Y_mocap_y) = mocap_p_var;
 	R(Y_mocap_z, Y_mocap_z) = mocap_p_var;
 
+	float mocap_v_var = _mocap_v_stddev.get()*_mocap_v_stddev.get();
+	R(Y_mocap_vx, Y_mocap_vx) = mocap_v_var;
+	R(Y_mocap_vy, Y_mocap_vy) = mocap_v_var;
+	R(Y_mocap_vz, Y_mocap_vz) = mocap_p_var;
+
+	// get delayed x and P
+	float t_delay = 0;
+	int i_hist = 0;
+
+	for (i_hist = 1; i_hist < MOCAP_HIST_LEN; i_hist++) {
+		t_delay = 1.0e-6f * (_timeStamp - _tDelay.get(i_hist)(0, 0));
+
+		if (t_delay > _mocap_p_delay.get()) {
+			break;
+		}
+	}
+
+	// if you are 3 steps past the delay you wanted, this
+	// data is probably too old to use
+	if (t_delay > MOCAP_DELAY_MAX) {
+		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap position delayed data too old: %8.4f", double(t_delay));
+		return;
+	}
+
+	Vector<float, n_x> x0 = _xDelay.get(i_hist);
+
+	for (i_hist = 1; i_hist < MOCAP_VEL_HIST_LEN; i_hist++) {
+		t_delay = 1.0e-6f * (_timeStamp - _tDelay.get(i_hist)(0, 0));
+
+		if (t_delay > _mocap_p_delay.get()) {
+			break;
+		}
+	}
+
+	// if you are 3 steps past the delay you wanted, this
+	// data is probably too old to use
+	if (t_delay > MOCAP_VEL_DELAY_MAX) {
+		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap position delayed data too old: %8.4f", double(t_delay));
+		return;
+	}
+	Vector<float, n_x> x1 = _xDelay.get(i_hist);
+
+	/*only delay velocity observation -bdai<21 Nov 2016>*/
+	for (int i = 0; i < 3; i++) {
+		x0(3 + i) = x1(3 + i);
+	}
+
 	// residual
 	Matrix<float, n_y_mocap, n_y_mocap> S_I = inv<float, n_y_mocap>((C * _P * C.transpose()) + R);
-	Matrix<float, n_y_mocap, 1> r = y - C * _x;
+	Matrix<float, n_y_mocap, 1> r = y - C * x0;
 
 	// fault detection
 	float beta = (r.transpose() * (S_I * r))(0, 0);

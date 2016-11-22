@@ -37,9 +37,16 @@ using namespace matrix;
 using namespace control;
 
 static const float GPS_DELAY_MAX = 0.5f; // seconds
+static const float MOCAP_DELAY_MAX = 0.5f; // seconds
+static const float MOCAP_VEL_DELAY_MAX = 0.8f; // seconds
+
 static const float HIST_STEP = 0.05f; // 20 hz
 static const float BIAS_MAX = 1e-1f;
-static const size_t HIST_LEN = 10; // GPS_DELAY_MAX / HIST_STEP;
+static const size_t HIST_LEN = 20;
+static const size_t GPS_HIST_LEN = 10; // GPS_DELAY_MAX / HIST_STEP;
+static const size_t MOCAP_HIST_LEN  = 10; //MOCAP_DELAY_MAX / HIST_STEP;
+static const size_t MOCAP_VEL_HIST_LEN  = 16; //MOCAP_VEL_DELAY_MAX / HIST_STEP;
+
 static const size_t N_DIST_SUBS = 4;
 
 enum fault_t {
@@ -133,7 +140,7 @@ public:
 	enum {Y_sonar_z = 0, n_y_sonar};
 	enum {Y_gps_x = 0, Y_gps_y, Y_gps_z, Y_gps_vx, Y_gps_vy, Y_gps_vz, n_y_gps};
 	enum {Y_vision_x = 0, Y_vision_y, Y_vision_z, n_y_vision};
-	enum {Y_mocap_x = 0, Y_mocap_y, Y_mocap_z, n_y_mocap};
+	enum {Y_mocap_x = 0, Y_mocap_y, Y_mocap_z,  Y_mocap_vx, Y_mocap_vy, Y_mocap_vz, n_y_mocap};
 	enum {POLL_FLOW, POLL_SENSORS, POLL_PARAM, n_poll};
 
 	BlockLocalPositionEstimator();
@@ -280,6 +287,9 @@ private:
 
 	// mocap parameters
 	BlockParamFloat  _mocap_p_stddev;
+	BlockParamFloat  _mocap_v_stddev;
+	BlockParamFloat  _mocap_p_delay;
+	BlockParamFloat  _mocap_v_delay;
 
 	// flow parameters
 	BlockParamFloat  _flow_z_offset;
