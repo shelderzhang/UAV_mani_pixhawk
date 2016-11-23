@@ -176,6 +176,9 @@ int px4_daemon_thread_main(int argc, char *argv[])
 			att_pos_mocap.x = 1;
 			att_pos_mocap.y = 3;
 			att_pos_mocap.z = -3;
+			att_pos_mocap.vx = 0.5f;
+			att_pos_mocap.vy = 2;
+			att_pos_mocap.vz = -2;
 
 			if (_att_pos_mocap_pub == NULL) {
 				_att_pos_mocap_pub = orb_advertise(ORB_ID(att_pos_mocap), &att_pos_mocap);
