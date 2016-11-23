@@ -2012,6 +2012,9 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_MOCP.x = buf.att_pos_mocap.x;
 				log_msg.body.log_MOCP.y = buf.att_pos_mocap.y;
 				log_msg.body.log_MOCP.z = buf.att_pos_mocap.z;
+				log_msg.body.log_MOCP.vx=buf.att_pos_mocap.vx;
+				log_msg.body.log_MOCP.vy=buf.att_pos_mocap.vy;
+				log_msg.body.log_MOCP.vz=buf.att_pos_mocap.vz;
 				LOGBUFFER_WRITE_AND_COUNT(MOCP);
 			}
 
