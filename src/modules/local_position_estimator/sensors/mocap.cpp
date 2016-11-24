@@ -108,7 +108,7 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	float mocap_v_var = _mocap_v_stddev.get()*_mocap_v_stddev.get();
 	R(Y_mocap_vx, Y_mocap_vx) = mocap_v_var;
 	R(Y_mocap_vy, Y_mocap_vy) = mocap_v_var;
-	R(Y_mocap_vz, Y_mocap_vz) = mocap_p_var;
+	R(Y_mocap_vz, Y_mocap_vz) = mocap_v_var;
 
 	// get delayed x and P
 	float t_delay = 0;
@@ -134,7 +134,7 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	for (i_hist = 1; i_hist < MOCAP_VEL_HIST_LEN; i_hist++) {
 		t_delay = 1.0e-6f * (_timeStamp - _tDelay.get(i_hist)(0, 0));
 
-		if (t_delay > _mocap_p_delay.get()) {
+		if (t_delay > _mocap_v_delay.get()) {
 			break;
 		}
 	}
@@ -142,7 +142,7 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	// if you are 3 steps past the delay you wanted, this
 	// data is probably too old to use
 	if (t_delay > MOCAP_VEL_DELAY_MAX) {
-		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap position delayed data too old: %8.4f", double(t_delay));
+		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap velocity delayed data too old: %8.4f", double(t_delay));
 		return;
 	}
 	Vector<float, n_x> x1 = _xDelay.get(i_hist);
@@ -154,7 +154,12 @@ void BlockLocalPositionEstimator::mocapCorrect()
 
 	// residual
 	Matrix<float, n_y_mocap, n_y_mocap> S_I = inv<float, n_y_mocap>((C * _P * C.transpose()) + R);
-	Matrix<float, n_y_mocap, 1> r = y - C * x0;
+	Vector<float, n_y_gps> r = y - C * x0;
+
+	for (int i = 0; i < 6; i ++) {
+		_pub_innov.get().vel_pos_innov[i] = r(i);
+		_pub_innov.get().vel_pos_innov_var[i] = R(i, i);
+	}
 
 	// fault detection
 	float beta = (r.transpose() * (S_I * r))(0, 0);
