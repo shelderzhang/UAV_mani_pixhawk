@@ -124,6 +124,7 @@ set(msg_file_names
 	endeff_frame_status.msg
 	
 	target_info.msg
+	pid_err.msg
 	)
 
 # Get absolute paths

@@ -302,6 +302,7 @@ void BlockLocalPositionEstimator::update()
 	visionUpdated = false;
 	lidarUpdated = false;
 	sonarUpdated = false;
+//	mocapUpdated = false;
 #endif
 
 	// get new data
