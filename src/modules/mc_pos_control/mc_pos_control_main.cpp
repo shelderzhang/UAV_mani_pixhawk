@@ -110,9 +110,9 @@ static bool OUT_FENCE = false;
 /*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
 static bool FOLLOW_MODE = true;
 
-static float pos_sp_condition[4] = { 0.4f, 0.02f,
+static float pos_sp_condition[4] = { 0.4f, 0.03f,
 		30.0f / 180.0f * (float)M_PI, 45.0f / 180.0f * (float)M_PI};
-enum {R = 0, r, ANGLE_MIN, ANGLE_MAX};
+enum {R_max = 0, R_min, ANGLE_MIN, ANGLE_MAX};
 
 enum {MIN = 0, MAX};
 static orb_advert_t mavlink_log_pub = nullptr;
@@ -918,6 +918,11 @@ MulticopterPositionControl::control_manual(float dt)
 			_vel_sp(0) = req_vel_sp_scaled(0);
 			_vel_sp(1) = req_vel_sp_scaled(1);
 		}
+	} else {
+		_pos_sp(0) = _pos(0);
+		_pos_sp(1) = _pos(1);
+		_run_pos_control = false; /* request velocity setpoint to be used, instead of position setpoint */
+
 	}
 
 	/* vertical axis */
@@ -1049,11 +1054,11 @@ void MulticopterPositionControl::control_auto(float dt)
 /*used to control in motion capture system -bdai<1 Nov 2016>*/
 #if true
 
-	if (!_target_updated){
-		_pos_sp = _pos;
-		_att_sp.yaw_body = _yaw;
-		return;
-	}
+//	if (!_target_updated){
+//		_pos_sp = _pos;
+//		_att_sp.yaw_body = _yaw;
+//		return;
+//	}
 
 	/*subscribe target position -bdai<1 Nov 2016>*/
 	Vector3f target_pos(_target.x, _target.y, _target.z);
@@ -1081,12 +1086,13 @@ void MulticopterPositionControl::control_auto(float dt)
 		direction = R * Vector3f(0.0f, 0.0f, 1.0f);
 	}
 
-	Vector3f err_sp = target_pos - pos_first_joint + direction * pos_sp_condition[R];
+	Vector3f err_sp = target_pos - pos_first_joint + direction * pos_sp_condition[R_max];
 
-	if ((pos_first_joint - err_sp).norm() > pos_sp_condition[R]) {
+	if (err_sp.norm() > pos_sp_condition[R_min]) {
 		_pos_sp = _pos + math::Vector<3>(err_sp(0), err_sp(1), err_sp(2));
 	} else {
-		_pos_sp = _pos;
+		print_info(print, &mavlink_log_pub, "in range!");
+//		_pos_sp = _pos;
 	}
 
 	for (int i = 0; i < 3; i++){
@@ -1107,13 +1113,13 @@ void MulticopterPositionControl::control_auto(float dt)
 		_att_sp.yaw_body = atan2f(direction(1), direction(0));
 	}
 
-	print_info(print, &mavlink_log_pub, "pos_ x:%8.3f, y:%8.3f, z:%8.3f",
-				(double)_pos(0), (double)_pos(1), (double)_pos(2));
-	print_info(print, &mavlink_log_pub, "targ x:%8.3f, y:%8.3f, z:%8.3f",
-				(double)target_pos(0), (double)target_pos(1), (double)target_pos(2));
-	print_info(print, &mavlink_log_pub, "p_sp x:%8.3f, y:%8.3f, z:%8.3f, yaw:%8.3f",
-			(double)_pos_sp(0), (double)_pos_sp(1), (double)_pos_sp(2),
-			(double)_att_sp.yaw_body);
+//	print_info(print, &mavlink_log_pub, "pos_ x:%8.3f, y:%8.3f, z:%8.3f",
+//				(double)_pos(0), (double)_pos(1), (double)_pos(2));
+//	print_info(print, &mavlink_log_pub, "targ x:%8.3f, y:%8.3f, z:%8.3f",
+//				(double)target_pos(0), (double)target_pos(1), (double)target_pos(2));
+//	print_info(print, &mavlink_log_pub, "p_sp x:%8.3f, y:%8.3f, z:%8.3f, yaw:%8.3f",
+//			(double)_pos_sp(0), (double)_pos_sp(1), (double)_pos_sp(2),
+//			(double)_att_sp.yaw_body);
 /*original code  -bdai<1 Nov 2016>*/
 #else
 	//Poll position setpoint
