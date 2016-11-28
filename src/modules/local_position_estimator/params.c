@@ -247,17 +247,6 @@ PARAM_DEFINE_INT32(LPE_VIS_ON, 1);
 PARAM_DEFINE_FLOAT(LPE_VIC_P, 0.05f);
 
 /**
- * Vicon delay compensaton
- *
- * @group Local Position Estimator
- * @unit sec
- * @min 0
- * @max 0.4
- * @decimal 2
- */
-PARAM_DEFINE_FLOAT(LPE_VIC_DELAY, 0.29f);
-
-/**
  * Position propagation noise density
  *
  * Increase to trust measurements more.

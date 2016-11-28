@@ -76,7 +76,6 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_vision_z_stddev(this, "VIS_Z"),
 	_vision_on(this, "VIS_ON"),
 	_mocap_p_stddev(this, "VIC_P"),
-	_mocap_p_delay(this, "VIC_DELAY"),
 	_flow_z_offset(this, "FLW_OFF_Z"),
 	_flow_xy_stddev(this, "FLW_XY"),
 	//_flow_board_x_offs(NULL, "SENS_FLW_XOFF"),

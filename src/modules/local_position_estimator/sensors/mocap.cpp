@@ -94,32 +94,9 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	R(Y_mocap_y, Y_mocap_y) = mocap_p_var;
 	R(Y_mocap_z, Y_mocap_z) = mocap_p_var;
 
-	// get delayed x and P
-	float t_delay = 0;
-	int i_hist = 0;
-
-	for (i_hist = 1; i_hist < MOCAP_HIST_LEN; i_hist++) {
-		t_delay = 1.0e-6f * (_timeStamp - _tDelay.get(i_hist)(0, 0));
-//		mavlink_and_console_log_info(&mavlink_log_pub,
-//				"t_delay is %8.4f \t p_delay is %8.4f", double(t_delay),(double)_mocap_p_delay.get());
-
-		if (t_delay > _mocap_p_delay.get()) {
-			break;
-		}
-	}
-
-	// if you are 3 steps past the delay you wanted, this
-	// data is probably too old to use
-	if (t_delay > MOCAP_DELAY_MAX) {
-		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap position delayed data too old: %8.4f", double(t_delay));
-		return;
-	}
-
-	Vector<float, n_x> x0 = _xDelay.get(i_hist);
-
 	// residual
 
-	Vector<float, n_y_mocap> r = y - C * x0;
+	Vector<float, n_y_mocap> r = y - C * _x;
 
 	for (int i = 0; i < 6; i ++) {
 		_pub_innov.get().vel_pos_innov[i] = r(i);
@@ -142,8 +119,7 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	}
 
 	// kalman filter correction if no fault
-//	if (_mocapFault < fault_lvl_disable) {
-	if(1) {
+	if (_mocapFault < fault_lvl_disable) {
 		Matrix<float, n_x, n_y_mocap> K = _P * C.transpose() * S_I;
 		Vector<float, n_x> dx = K * r;
 		correctionLogic(dx);

@@ -40,8 +40,6 @@ static const float GPS_DELAY_MAX = 0.5f; // seconds
 static const float HIST_STEP = 0.05f; // 20 hz
 static const float BIAS_MAX = 1e-1f;
 static const size_t HIST_LEN = 10; // GPS_DELAY_MAX / HIST_STEP;
-static const size_t MOCAP_HIST_LEN  = 10; //MOCAP_DELAY_MAX / HIST_STEP;
-static const float MOCAP_DELAY_MAX = 0.5f; // seconds
 static const size_t N_DIST_SUBS = 4;
 
 enum fault_t {
@@ -282,7 +280,6 @@ private:
 
 	// mocap parameters
 	BlockParamFloat  _mocap_p_stddev;
-	BlockParamFloat  _mocap_p_delay;
 
 	// flow parameters
 	BlockParamFloat  _flow_z_offset;
