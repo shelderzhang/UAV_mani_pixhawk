@@ -157,17 +157,17 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 	//orb_advert_t endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &mavros_data2);
 	while (!thread_should_exit) {
 		mavros_data.timestamp = hrt_absolute_time();
-		mavros_data.x = 0.1f;
-		mavros_data.y = 0.25f;
-		mavros_data.z = 0.4f;
-		mavros_data.arm_enable =2;
+		mavros_data.x = 0.41f;
+		mavros_data.y = -0.06f;
+		mavros_data.z = 0.15f;
+//		mavros_data.arm_enable =2;
 		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
 		sleep(5);
 		mavros_data.timestamp = hrt_absolute_time();
 		mavros_data.x = 0.0f;
 		mavros_data.y = 0.0f;
 		mavros_data.z = 0.0f;
-		mavros_data.arm_enable =2;
+//		mavros_data.arm_enable =2;
 		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
 		sleep(5);
 	}
