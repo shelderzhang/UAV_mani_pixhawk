@@ -116,6 +116,11 @@
 /*used to store pid err -bdai<20 Nov 2016>*/
 #include <uORB/topics/pid_err.h>
 
+/* store manipulator -gyzhang<26 Fr 2017>*/
+#include <uORB/topics/endeff_frame_status.h>
+#include <uORB/topics/target_endeff_frame.h>
+#include <uORB/topics/manipulator_joint_status.h>
+
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
 #include <systemlib/perf_counter.h>
@@ -1231,6 +1236,10 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct target_info_s target_info;
 
 		struct pid_err_s pid_err;
+		//gyzhang
+		struct target_endeff_frame_s target_endeff_frame;
+		struct endeff_frame_status_s endeff_frame_status;
+		struct manipulator_joint_status_s manipulator_joint_status;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1298,6 +1307,10 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_ERRX_s log_ERRX;
 			struct log_ERRX_s log_ERRY;
 			struct log_ERRX_s log_ERRZ;
+			//gyzhang
+			struct log_EFFR_s log_EFFR;
+			struct log_EFFS_s log_EFFS;
+			struct log_MANJ_s log_MANJ;
 
 		} body;
 	} log_msg = {
@@ -1352,6 +1365,10 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int tari_sub;
 		/*bdai -bdai<20 Nov 2016>*/
 		int pid_err_sub;
+		//gyzhang
+		int target_endeff_frame_sub;
+		int endeff_frame_status_sub;
+		int manipulator_joint_status_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1394,12 +1411,17 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.land_detected_sub = -1;
 	subs.commander_state_sub = -1;
 	subs.cpuload_sub = -1;
+	/* add new topics HERE */
 	// By LZ
 	subs.tari_sub = -1;
 
 	subs.pid_err_sub = -1;
+	//gyzhang
+	subs.target_endeff_frame_sub = -1;
+	subs.endeff_frame_status_sub = -1;
+	subs.manipulator_joint_status_sub = -1;
 
-	/* add new topics HERE */
+
 
 
 	for (unsigned i = 0; i < ORB_MULTI_MAX_INSTANCES; i++) {
@@ -2371,6 +2393,69 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_ERRZ.v_i= buf.pid_err.vz_i;
 			log_msg.body.log_ERRZ.v_d= buf.pid_err.vz_d;
 			LOGBUFFER_WRITE_AND_COUNT(ERRX);
+		}
+		// By gyzhang
+		/* --- TARGET(REFERENCE) ENDEFF FRAME INFORMATION --- */
+		if(copy_if_updated(ORB_ID(target_endeff_frame), &subs.target_endeff_frame_sub, &buf.target_endeff_frame)) {
+			log_msg.msg_type = LOG_EFFR_MSG;
+			log_msg.body.log_EFFR.arm_enable = buf.target_endeff_frame.arm_enable;
+
+			log_msg.body.log_EFFR.x = buf.target_endeff_frame.x;
+			log_msg.body.log_EFFR.y = buf.target_endeff_frame.y;
+			log_msg.body.log_EFFR.z = buf.target_endeff_frame.z;
+			log_msg.body.log_EFFR.vx = buf.target_endeff_frame.vx;
+			log_msg.body.log_EFFR.vy = buf.target_endeff_frame.vy;
+			log_msg.body.log_EFFR.vz = buf.target_endeff_frame.vz;
+
+			log_msg.body.log_EFFR.pitch = buf.target_endeff_frame.pitch;
+			log_msg.body.log_EFFR.roll = buf.target_endeff_frame.roll;
+			log_msg.body.log_EFFR.yaw = buf.target_endeff_frame.yaw;
+			log_msg.body.log_EFFR.vr = buf.target_endeff_frame.roll_rate;
+			log_msg.body.log_EFFR.vp = buf.target_endeff_frame.pitch_rate;
+			log_msg.body.log_EFFR.vyaw =buf.target_endeff_frame.yaw_rate;
+			LOGBUFFER_WRITE_AND_COUNT(EFFR);
+		}
+		if(copy_if_updated(ORB_ID(endeff_frame_status), &subs.endeff_frame_status_sub, &buf.endeff_frame_status)) {
+			log_msg.msg_type = LOG_EFFS_MSG;
+			log_msg.body.log_EFFS.arm_enable = buf.endeff_frame_status.arm_enable;
+			log_msg.body.log_EFFS.gripper_status = buf.endeff_frame_status.gripper_status;
+			log_msg.body.log_EFFS.gripper_posi = buf.endeff_frame_status.gripper_posi;
+
+			log_msg.body.log_EFFS.x = buf.endeff_frame_status.x;
+			log_msg.body.log_EFFS.y = buf.endeff_frame_status.y;
+			log_msg.body.log_EFFS.z = buf.endeff_frame_status.z;
+			log_msg.body.log_EFFS.vx = buf.endeff_frame_status.vx;
+			log_msg.body.log_EFFS.vy = buf.endeff_frame_status.vy;
+			log_msg.body.log_EFFS.vz = buf.endeff_frame_status.vz;
+
+			log_msg.body.log_EFFS.pitch = buf.endeff_frame_status.pitch;
+			log_msg.body.log_EFFS.roll = buf.endeff_frame_status.roll;
+			log_msg.body.log_EFFS.yaw = buf.endeff_frame_status.yaw;
+			log_msg.body.log_EFFS.vr = buf.endeff_frame_status.roll_rate;
+			log_msg.body.log_EFFS.vp = buf.endeff_frame_status.pitch_rate;
+			log_msg.body.log_EFFS.vyaw =buf.endeff_frame_status.yaw_rate;
+			LOGBUFFER_WRITE_AND_COUNT(EFFS);
+		}
+
+		if(copy_if_updated(ORB_ID(manipulator_joint_status),&subs.manipulator_joint_status_sub,&buf.manipulator_joint_status)){
+			log_msg.msg_type = LOG_MANJ_MSG;
+			log_msg.body.log_MANJ.q1 = buf.manipulator_joint_status.joint_posi_1;
+			log_msg.body.log_MANJ.q2 = buf.manipulator_joint_status.joint_posi_2;
+			log_msg.body.log_MANJ.q3 = buf.manipulator_joint_status.joint_posi_3;
+			log_msg.body.log_MANJ.q4 = buf.manipulator_joint_status.joint_posi_4;
+			log_msg.body.log_MANJ.q5 = buf.manipulator_joint_status.joint_posi_5;
+			log_msg.body.log_MANJ.q6 = buf.manipulator_joint_status.joint_posi_6;
+			log_msg.body.log_MANJ.q7 = buf.manipulator_joint_status.joint_posi_7;
+
+			log_msg.body.log_MANJ.rate1 = buf.manipulator_joint_status.joint_rate_1;
+			log_msg.body.log_MANJ.rate2 = buf.manipulator_joint_status.joint_rate_2;
+			log_msg.body.log_MANJ.rate3 = buf.manipulator_joint_status.joint_rate_3;
+			log_msg.body.log_MANJ.rate4 = buf.manipulator_joint_status.joint_rate_4;
+			log_msg.body.log_MANJ.rate5 = buf.manipulator_joint_status.joint_rate_5;
+			log_msg.body.log_MANJ.rate6 = buf.manipulator_joint_status.joint_rate_6;
+			log_msg.body.log_MANJ.rate7 = buf.manipulator_joint_status.joint_rate_7;
+			LOGBUFFER_WRITE_AND_COUNT(MANJ);
+
 		}
 
 		pthread_mutex_lock(&logbuffer_mutex);
