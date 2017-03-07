@@ -36,7 +36,7 @@ using namespace control;
 
 static const float DELAY_MAX = 0.5f; // seconds
 static const float HIST_STEP = 0.05f; // 20 hz
-static const float BIAS_MAX = 1e-1f;
+static const float BIAS_MAX = 3*1e-1f;
 static const size_t HIST_LEN = 10; // DELAY_MAX / HIST_STEP;
 static const size_t N_DIST_SUBS = 4;
 
