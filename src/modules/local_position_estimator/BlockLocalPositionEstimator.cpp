@@ -39,7 +39,11 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// vision 30 hz
 	_sub_vision_pos(ORB_ID(vision_position_estimate), 1000 / 30, 0, &getSubscriptions()),
 	// mocap 50 hz
+#ifdef USING_MOCAP_VEL
 	_sub_mocap(ORB_ID(att_pos_mocap), 1000 / 50, 0, &getSubscriptions()),
+#else
+	_sub_mocap(ORB_ID(att_pos_vel_mocap), 1000 / 50, 0, &getSubscriptions()),
+#endif
 	// all distance sensors, 10 hz
 	_sub_dist0(ORB_ID(distance_sensor), 1000 / 10, 0, &getSubscriptions()),
 	_sub_dist1(ORB_ID(distance_sensor), 1000 / 10, 1, &getSubscriptions()),
@@ -82,6 +86,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_vision_delay(this, "VIS_DELAY"),
 	_vision_on(this, "VIS_ON"),
 	_mocap_p_stddev(this, "VIC_P"),
+	_mocap_v_stddev(this, "VIC_V"),
 	_flow_gyro_comp(this, "FLW_GYRO_CMP"),
 	_flow_z_offset(this, "FLW_OFF_Z"),
 	_flow_scale(this, "FLW_SCALE"),

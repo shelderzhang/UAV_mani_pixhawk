@@ -23,6 +23,7 @@
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/vision_position_estimate.h>
 #include <uORB/topics/att_pos_mocap.h>
+#include <uORB/topics/att_pos_vel_mocap.h>
 
 // uORB Publications
 #include <uORB/Publication.hpp>
@@ -30,6 +31,8 @@
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/estimator_status.h>
 #include <uORB/topics/ekf2_innovations.h>
+
+#define USING_MOCAP_VEL
 
 using namespace matrix;
 using namespace control;
@@ -134,7 +137,11 @@ public:
 	enum {Y_sonar_z = 0, n_y_sonar};
 	enum {Y_gps_x = 0, Y_gps_y, Y_gps_z, Y_gps_vx, Y_gps_vy, Y_gps_vz, n_y_gps};
 	enum {Y_vision_x = 0, Y_vision_y, Y_vision_z, n_y_vision};
+#ifdef USING_MOCAP_VEL
+	enum {Y_mocap_x = 0, Y_mocap_y, Y_mocap_z, Y_mocap_vx, Y_mocap_vy, Y_mocap_vz, n_y_mocap};
+#else
 	enum {Y_mocap_x = 0, Y_mocap_y, Y_mocap_z, n_y_mocap};
+#endif
 	enum {Y_land_vx, Y_land_vy, Y_land_agl = 0, n_y_land};
 	enum {POLL_FLOW, POLL_SENSORS, POLL_PARAM, n_poll};
 
@@ -238,7 +245,11 @@ private:
 	uORB::Subscription<manual_control_setpoint_s> _sub_manual;
 	uORB::Subscription<vehicle_gps_position_s> _sub_gps;
 	uORB::Subscription<vision_position_estimate_s> _sub_vision_pos;
+#ifdef USING_MOCAP_VEL
+	uORB::Subscription<att_pos_vel_mocap_s> _sub_mocap;
+#else
 	uORB::Subscription<att_pos_mocap_s> _sub_mocap;
+#endif
 	uORB::Subscription<distance_sensor_s> _sub_dist0;
 	uORB::Subscription<distance_sensor_s> _sub_dist1;
 	uORB::Subscription<distance_sensor_s> _sub_dist2;
@@ -294,6 +305,7 @@ private:
 
 	// mocap parameters
 	BlockParamFloat  _mocap_p_stddev;
+	BlockParamFloat  _mocap_v_stddev;
 
 	// flow parameters
 	BlockParamInt  _flow_gyro_comp;

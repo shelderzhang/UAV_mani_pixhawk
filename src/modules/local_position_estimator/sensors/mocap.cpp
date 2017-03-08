@@ -45,6 +45,11 @@ int BlockLocalPositionEstimator::mocapMeasure(Vector<float, n_y_mocap> &y)
 	y(Y_mocap_x) = _sub_mocap.get().x;
 	y(Y_mocap_y) = _sub_mocap.get().y;
 	y(Y_mocap_z) = _sub_mocap.get().z;
+#ifdef USING_MOCAP_VEL
+	y(Y_mocap_vx) = _sub_mocap.get().vx;
+	y(Y_mocap_vy) = _sub_mocap.get().vy;
+	y(Y_mocap_vz) = _sub_mocap.get().vz;
+#endif
 	_mocapStats.update(y);
 	_time_last_mocap = _sub_mocap.get().timestamp;
 	return OK;
@@ -63,6 +68,11 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	C(Y_mocap_x, X_x) = 1;
 	C(Y_mocap_y, X_y) = 1;
 	C(Y_mocap_z, X_z) = 1;
+#ifdef USING_MOCAP_VEL
+	C(Y_mocap_vx, X_vx) = 1;
+	C(Y_mocap_vy, X_vy) = 1;
+	C(Y_mocap_vz, X_vz) = 1;
+#endif
 
 	// noise matrix
 	Matrix<float, n_y_mocap, n_y_mocap> R;
@@ -72,6 +82,13 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	R(Y_mocap_x, Y_mocap_x) = mocap_p_var;
 	R(Y_mocap_y, Y_mocap_y) = mocap_p_var;
 	R(Y_mocap_z, Y_mocap_z) = mocap_p_var;
+#ifdef USING_MOCAP_VEL
+	float mocap_v_var = _mocap_v_stddev.get()* \
+			    _mocap_v_stddev.get();
+	R(Y_mocap_vx, Y_mocap_vx) = mocap_v_var;
+	R(Y_mocap_vy, Y_mocap_vy) = mocap_v_var;
+	R(Y_mocap_vz, Y_mocap_vz) = mocap_v_var;
+#endif
 
 	// residual
 	Matrix<float, n_y_mocap, n_y_mocap> S_I = inv<float, n_y_mocap>((C * _P * C.transpose()) + R);
