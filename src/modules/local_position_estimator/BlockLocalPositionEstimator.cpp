@@ -40,9 +40,9 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_sub_vision_pos(ORB_ID(vision_position_estimate), 1000 / 30, 0, &getSubscriptions()),
 	// mocap 50 hz
 #ifdef USING_MOCAP_VEL
-	_sub_mocap(ORB_ID(att_pos_mocap), 1000 / 50, 0, &getSubscriptions()),
-#else
 	_sub_mocap(ORB_ID(att_pos_vel_mocap), 1000 / 50, 0, &getSubscriptions()),
+#else
+	_sub_mocap(ORB_ID(att_pos_mocap), 1000 / 50, 0, &getSubscriptions()),
 #endif
 	// all distance sensors, 10 hz
 	_sub_dist0(ORB_ID(distance_sensor), 1000 / 10, 0, &getSubscriptions()),

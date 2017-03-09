@@ -120,6 +120,7 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_force_sp_pub(nullptr),
 	_pos_sp_triplet_pub(nullptr),
 	_att_pos_mocap_pub(nullptr),
+	_att_pos_vel_mocap_pub(nullptr),
 	_vision_position_pub(nullptr),
 	_telemetry_status_pub(nullptr),
 	_rc_pub(nullptr),
@@ -165,7 +166,6 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 			_mavlink->set_config_link_on(true);
 		}
 	}
-
 	switch (msg->msgid) {
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		if (_mavlink->accepting_commands()) {
@@ -198,6 +198,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 
 	case MAVLINK_MSG_ID_ATT_POS_MOCAP:
 		handle_message_att_pos_mocap(msg);
+		break;
+
+	case MAVLINK_MSG_ID_ATT_POS_VEL_MOCAP:
+		handle_message_att_pos_vel_mocap(msg);
 		break;
 
 	case MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED:
@@ -742,6 +746,41 @@ MavlinkReceiver::handle_message_att_pos_mocap(mavlink_message_t *msg)
 
 	} else {
 		orb_publish(ORB_ID(att_pos_mocap), _att_pos_mocap_pub, &att_pos_mocap);
+	}
+}
+
+void
+MavlinkReceiver::handle_message_att_pos_vel_mocap(mavlink_message_t *msg)
+{
+	mavlink_att_pos_vel_mocap_t mocap;
+	mavlink_msg_att_pos_vel_mocap_decode(msg, &mocap);
+
+	struct att_pos_vel_mocap_s att_pos_vel_mocap = {};
+
+	// Use the component ID to identify the mocap system
+	att_pos_vel_mocap.id = msg->compid;
+
+	att_pos_vel_mocap.timestamp = sync_stamp(mocap.time_usec);
+	att_pos_vel_mocap.timestamp_received = hrt_absolute_time();
+
+	att_pos_vel_mocap.q[0] = mocap.q[0];
+	att_pos_vel_mocap.q[1] = mocap.q[1];
+	att_pos_vel_mocap.q[2] = mocap.q[2];
+	att_pos_vel_mocap.q[3] = mocap.q[3];
+
+	att_pos_vel_mocap.x = mocap.x;
+	att_pos_vel_mocap.y = mocap.y;
+	att_pos_vel_mocap.z = mocap.z;
+
+	att_pos_vel_mocap.vx = mocap.Vx;
+	att_pos_vel_mocap.vy = mocap.Vy;
+	att_pos_vel_mocap.vz = mocap.Vz;
+
+	if (_att_pos_vel_mocap_pub == nullptr) {
+		_att_pos_vel_mocap_pub = orb_advertise(ORB_ID(att_pos_vel_mocap), &att_pos_vel_mocap);
+
+	} else {
+		orb_publish(ORB_ID(att_pos_vel_mocap), _att_pos_vel_mocap_pub, &att_pos_vel_mocap);
 	}
 }
 
