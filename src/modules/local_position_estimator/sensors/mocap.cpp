@@ -8,6 +8,7 @@ extern orb_advert_t mavlink_log_pub;
 // to initialize
 static const uint32_t 		REQ_MOCAP_INIT_COUNT = 2;
 static const uint32_t 		MOCAP_TIMEOUT =     500000;	// 0.5 s
+static float pre_vel[3] = {0.0f, 0.0f, 0.0f};
 
 void BlockLocalPositionEstimator::mocapInit()
 {
@@ -116,9 +117,10 @@ void BlockLocalPositionEstimator::mocapCorrect()
 		_x += dx;
 		_P -= K * C * _P;
 #if USING_MOCAP_VEL == 1
-		_x(X_vx) = _sub_mocap.get().vx;
-		_x(X_vy) = _sub_mocap.get().vy;
-		_x(X_vz) = _sub_mocap.get().vz;
+		float a = 0.8f;
+		_x(X_vx) = pre_vel[0] = a*_sub_mocap.get().vx + (1.0f-a)*pre_vel[0];
+		_x(X_vy) = pre_vel[1] = a*_sub_mocap.get().vy + (1.0f-a)*pre_vel[1];
+		_x(X_vz) = pre_vel[2] = a*_sub_mocap.get().vz + (1.0f-a)*pre_vel[2];
 		// printf("n_y_mocap is : %d\n",n_y_mocap);
 #endif
 	}
