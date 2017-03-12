@@ -92,6 +92,11 @@
 #define MANUAL_THROTTLE_MAX_MULTICOPTER	0.9f
 #define ONE_G	9.8066f
 
+// #define HOVERING_MODE
+#ifdef HOVERING_MODE
+	static math::Vector<3> hovering_point(1.0f, 0.0f, -1.5f);
+#endif
+
 /**
  * Multicopter position control app start / stop handling function
  *
@@ -165,6 +170,9 @@ private:
 	control::BlockDerivative _vel_y_deriv;
 	control::BlockDerivative _vel_z_deriv;
 
+	control::BlockDerivative _pos_x_deriv;
+	control::BlockDerivative _pos_y_deriv;
+	control::BlockDerivative _pos_z_deriv;
 	struct {
 		param_t thr_min;
 		param_t thr_max;
@@ -172,6 +180,8 @@ private:
 		param_t alt_ctl_dz;
 		param_t alt_ctl_dy;
 		param_t z_p;
+		param_t z_i;
+		param_t z_d;
 		param_t z_vel_p;
 		param_t z_vel_i;
 		param_t z_vel_d;
@@ -179,6 +189,8 @@ private:
 		param_t z_vel_max_down;
 		param_t z_ff;
 		param_t xy_p;
+		param_t xy_i;
+		param_t xy_d;
 		param_t xy_vel_p;
 		param_t xy_vel_i;
 		param_t xy_vel_d;
@@ -229,6 +241,8 @@ private:
 		int opt_recover;
 
 		math::Vector<3> pos_p;
+		math::Vector<3> pos_i;
+		math::Vector<3> pos_d;
 		math::Vector<3> vel_p;
 		math::Vector<3> vel_i;
 		math::Vector<3> vel_d;
@@ -253,6 +267,7 @@ private:
 
 	math::Vector<3> _pos;
 	math::Vector<3> _pos_sp;
+	math::Vector<3> _pos_err_d;	/**< derivative of current position error */
 	math::Vector<3> _vel;
 	math::Vector<3> _vel_sp;
 	math::Vector<3> _vel_prev;			/**< velocity on previous step */
@@ -399,6 +414,9 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_vel_x_deriv(this, "VELD"),
 	_vel_y_deriv(this, "VELD"),
 	_vel_z_deriv(this, "VELD"),
+	_pos_x_deriv(this, "POSD"),
+	_pos_y_deriv(this, "POSD"),
+	_pos_z_deriv(this, "POSD"),
 	_ref_alt(0.0f),
 	_ref_timestamp(0),
 
@@ -430,6 +448,8 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	memset(&_ref_pos, 0, sizeof(_ref_pos));
 
 	_params.pos_p.zero();
+	_params.pos_i.zero();
+	_params.pos_d.zero();
 	_params.vel_p.zero();
 	_params.vel_i.zero();
 	_params.vel_d.zero();
@@ -440,6 +460,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 
 	_pos.zero();
 	_pos_sp.zero();
+	_pos_err_d.zero();
 	_vel.zero();
 	_vel_sp.zero();
 	_vel_prev.zero();
@@ -455,6 +476,8 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_params_handles.alt_ctl_dz	= param_find("MPC_ALTCTL_DZ");
 	_params_handles.alt_ctl_dy	= param_find("MPC_ALTCTL_DY");
 	_params_handles.z_p		= param_find("MPC_Z_P");
+	_params_handles.z_i		= param_find("MPC_Z_I");
+	_params_handles.z_d		= param_find("MPC_Z_D");
 	_params_handles.z_vel_p		= param_find("MPC_Z_VEL_P");
 	_params_handles.z_vel_i		= param_find("MPC_Z_VEL_I");
 	_params_handles.z_vel_d		= param_find("MPC_Z_VEL_D");
@@ -470,6 +493,8 @@ MulticopterPositionControl::MulticopterPositionControl() :
 
 	_params_handles.z_ff		= param_find("MPC_Z_FF");
 	_params_handles.xy_p		= param_find("MPC_XY_P");
+	_params_handles.xy_i		= param_find("MPC_XY_I");
+	_params_handles.xy_d		= param_find("MPC_XY_D");
 	_params_handles.xy_vel_p	= param_find("MPC_XY_VEL_P");
 	_params_handles.xy_vel_i	= param_find("MPC_XY_VEL_I");
 	_params_handles.xy_vel_d	= param_find("MPC_XY_VEL_D");
@@ -554,8 +579,18 @@ MulticopterPositionControl::parameters_update(bool force)
 		param_get(_params_handles.xy_p, &v);
 		_params.pos_p(0) = v;
 		_params.pos_p(1) = v;
+		param_get(_params_handles.xy_i, &v);
+		_params.pos_i(0) = v;
+		_params.pos_i(1) = v;
+		param_get(_params_handles.xy_d, &v);
+		_params.pos_d(0) = v;
+		_params.pos_d(1) = v;
 		param_get(_params_handles.z_p, &v);
 		_params.pos_p(2) = v;
+		param_get(_params_handles.z_i, &v);
+		_params.pos_i(2) = v;
+		param_get(_params_handles.z_d, &v);
+		_params.pos_d(2) = v;
 		param_get(_params_handles.xy_vel_p, &v);
 		_params.vel_p(0) = v;
 		_params.vel_p(1) = v;
@@ -931,8 +966,13 @@ MulticopterPositionControl::control_manual(float dt)
 				if (_params.hold_max_xy < FLT_EPSILON || vel_xy_mag < _params.hold_max_xy) {
 					/* reset position setpoint to have smooth transition from velocity control to position control */
 					_pos_hold_engaged = true;
+#ifdef HOVERING_MODE
+					_pos_sp(0) = hovering_point(0);
+					_pos_sp(1) = hovering_point(1);					
+#else
 					_pos_sp(0) = _pos(0);
 					_pos_sp(1) = _pos(1);
+#endif
 
 				} else {
 					_pos_hold_engaged = false;
@@ -961,7 +1001,11 @@ MulticopterPositionControl::control_manual(float dt)
 				if (_params.hold_max_z < FLT_EPSILON || fabsf(_vel(2)) < _params.hold_max_z) {
 					/* reset position setpoint to have smooth transition from velocity control to position control */
 					_alt_hold_engaged = true;
+#ifdef HOVERING_MODE
+					_pos_sp(2) = hovering_point(2);
+#else
 					_pos_sp(2) = _pos(2);
+#endif
 
 				} else {
 					_alt_hold_engaged = false;
@@ -1340,6 +1384,8 @@ MulticopterPositionControl::task_main()
 
 	hrt_abstime t_prev = 0;
 
+	math::Vector<3> pos_err_i;
+	pos_err_i.zero();
 	math::Vector<3> thrust_int;
 	thrust_int.zero();
 
@@ -1425,6 +1471,9 @@ MulticopterPositionControl::task_main()
 					_pos(2) = _local_pos.z;
 				}
 			}
+			_pos_err_d(0) = _pos_x_deriv.update(-_pos(0));
+			_pos_err_d(1) = _pos_y_deriv.update(-_pos(1));
+			_pos_err_d(2) = _pos_z_deriv.update(-_pos(2));
 
 			if (PX4_ISFINITE(_local_pos.vx) &&
 			    PX4_ISFINITE(_local_pos.vy) &&
@@ -1544,10 +1593,16 @@ MulticopterPositionControl::task_main()
 				}
 
 			} else {
+				/* position error */
+				math::Vector<3> pos_err = _pos_sp - _pos;
+
 				/* run position & altitude controllers, if enabled (otherwise use already computed velocity setpoints) */
 				if (_run_pos_control) {
-					_vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0);
-					_vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1);
+					// _vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0);
+					// _vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1);
+					_vel_sp(0) = pos_err(0) * _params.pos_p(0) + _pos_err_d(0) * _params.pos_d(0) +  pos_err_i(0);
+					_vel_sp(1) = pos_err(1) * _params.pos_p(1) + _pos_err_d(1) * _params.pos_d(1) +  pos_err_i(1);
+					// PX4_INFO("XY PID: %4.4f,%4.4f,%4.4f",(double)_params.pos_p(0),(double)_params.pos_i(0),(double)_params.pos_d(0));
 				}
 
 				// guard against any bad velocity values
@@ -1591,7 +1646,9 @@ MulticopterPositionControl::task_main()
 				}
 
 				if (_run_alt_control) {
-					_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
+					// _vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
+					_vel_sp(2) = pos_err(2) * _params.pos_p(2) + _pos_err_d(2) * _params.pos_d(2) + pos_err_i(2);
+					// PX4_INFO("Z PID: %4.4f,%4.4f,%4.4f",(double)_params.pos_p(2),(double)_params.pos_i(2),(double)_params.pos_d(2));
 				}
 
 				/* make sure velocity setpoint is saturated in xy*/
@@ -1602,6 +1659,11 @@ MulticopterPositionControl::task_main()
 					/* note assumes vel_max(0) == vel_max(1) */
 					_vel_sp(0) = _vel_sp(0) * _params.vel_max(0) / vel_norm_xy;
 					_vel_sp(1) = _vel_sp(1) * _params.vel_max(1) / vel_norm_xy;
+				} else if (_run_pos_control){
+					pos_err_i(0) += pos_err(0) * _params.pos_i(0) * dt;
+					pos_err_i(1) += pos_err(1) * _params.pos_i(1) * dt;
+				} else {
+					pos_err_i(1) = pos_err_i(0) = 0; //if no position control, clean init
 				}
 
 				/* make sure velocity setpoint is saturated in z*/
@@ -1611,6 +1673,10 @@ MulticopterPositionControl::task_main()
 
 				if (_vel_sp(2) >  _params.vel_max_down) {
 					_vel_sp(2) = _params.vel_max_down;
+				} else if(_run_alt_control){
+					pos_err_i(2) += pos_err(2) * _params.pos_i(2) * dt;
+				} else {
+					pos_err_i(2) = 0;
 				}
 
 				if (!_control_mode.flag_control_position_enabled) {
