@@ -4,6 +4,7 @@
         "memory": "cpp",
         "array": "cpp",
         "future": "cpp",
-        "tuple": "cpp"
+        "tuple": "cpp",
+        "iterator": "cpp"
     }
 }

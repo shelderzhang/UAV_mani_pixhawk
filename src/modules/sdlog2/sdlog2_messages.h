@@ -634,6 +634,17 @@ struct log_DPRS_s {
 	float temperature;
 };
 
+/* --- Angular Acceleration and Acceleration --- */
+#define LOG_AAA_MSG 63
+struct log_AAA_s {
+	float angacc_x;
+	float angacc_y;
+	float angacc_z;
+	float acc_x;
+	float acc_y;
+	float acc_z;
+};
+
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -724,6 +735,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
 	LOG_FORMAT(DPRS, "Qffff", "errors,DPRESraw,DPRES,DPRESmax,Temp"),
+	LOG_FORMAT(AAA,  "ffffff", "AAx,AAy,AAz,Ax,Ay,Az"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),

@@ -141,6 +141,7 @@ private:
     BlockLowPassVector<float, n_x> _xLowPass;
 
     uint64_t _timeStamp;
+    bool _valid_acc;
     px4_pollfd_struct_t _polls[2];
 
     Vector<float, n_x> _x;		 // state Vector
@@ -168,6 +169,7 @@ AngaccAccEKF::AngaccAccEKF() :
     _vel_stddev(this, "VEL_STD"),
     _xLowPass(this, "X_LP"),
 	_timeStamp(hrt_absolute_time()),
+	_valid_acc(false),
     _polls(),
     _x(), _P(), _C(), _A(), _Q(), _R()
 {
@@ -183,11 +185,13 @@ AngaccAccEKF::AngaccAccEKF() :
 
 void AngaccAccEKF::update()
 {
-    int ret = px4_poll(_polls,1,100);
+    int ret = px4_poll(&_polls[1],1,100);
 
     if (ret <= 0) {
         return;
     }
+
+    _valid_acc = _sub_local_pos.check_updated();
 
     uint64_t newTimeStamp = hrt_absolute_time();
 	float dt = (newTimeStamp - _timeStamp) / 1.0e6f;
@@ -243,12 +247,14 @@ void AngaccAccEKF::update()
     correct();
 
     const Vector<float, n_x> &xLP = _xLowPass.getState();
+    _pub_angacc_acc.get().timestamp = _timeStamp;
     _pub_angacc_acc.get().ang_acc_x = xLP(X_angx);
     _pub_angacc_acc.get().ang_acc_y = xLP(X_angy);
     _pub_angacc_acc.get().ang_acc_z = xLP(X_angz);
-    _pub_angacc_acc.get().acc_x = xLP(X_accx);
-    _pub_angacc_acc.get().acc_y = xLP(X_accy);
-    _pub_angacc_acc.get().acc_z = xLP(X_accz);
+	_pub_angacc_acc.get().acc_x = xLP(X_accx);
+	_pub_angacc_acc.get().acc_y = xLP(X_accy);
+	_pub_angacc_acc.get().acc_z = xLP(X_accz);
+	_pub_angacc_acc.get().valid_acc = _valid_acc;
     _pub_angacc_acc.update();
 }
 
@@ -278,10 +284,20 @@ void AngaccAccEKF::correct()
 
     Matrix<float, n_x, n_y> _K = _P * _C.transpose() * S_I;
     Vector<float, n_x> dx = _K * r;
+    Matrix<float, n_x, n_x> dP = _K * _C * _P;
     // correctionLogic(dx);
 
+    if (!_valid_acc) {
+    	for (uint32_t i = X_accx; i < n_x; i++) {
+    		dx(i) = 0.0f;
+    		for (uint32_t j = X_accx; j < n_x; j++) {
+    			dP(i, j) = 0.0f;
+    		}
+    	}
+    }
+
     _x += dx;
-    _P -= _K * _C * _P;
+    _P -= dP;
 }
 
 void AngaccAccEKF::predict()
@@ -455,8 +471,6 @@ int angacc_acc_ekf_thread_main(int argc, char *argv[])
 {
 
 	PX4_DEBUG("starting");
-
-	using namespace control;
 
 	AngaccAccEKF est;
 

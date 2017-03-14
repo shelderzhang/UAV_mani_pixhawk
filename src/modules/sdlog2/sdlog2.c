@@ -111,6 +111,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
+#include <uORB/topics/angacc_acc.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1222,6 +1223,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_land_detected_s land_detected;
 		struct cpuload_s cpuload;
 		struct vehicle_gps_position_s dual_gps_pos;
+		struct angacc_acc_s angacc_acc;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1284,6 +1286,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_RPL6_s log_RPL6;
 			struct log_LOAD_s log_LOAD;
 			struct log_DPRS_s log_DPRS;
+			struct log_AAA_s log_AAA;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1334,6 +1337,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int commander_state_sub;
 		int cpuload_sub;
 		int diff_pres_sub;
+		int angacc_acc_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1377,6 +1381,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.commander_state_sub = -1;
 	subs.cpuload_sub = -1;
 	subs.diff_pres_sub = -1;
+	subs.angacc_acc_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2057,6 +2062,18 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_DPRS.max_differential_pressure_pa = buf.diff_pres.max_differential_pressure_pa;
 				log_msg.body.log_DPRS.temperature = buf.diff_pres.temperature;
 				LOGBUFFER_WRITE_AND_COUNT(DPRS);
+			}
+
+			/* --- DIFFERENTIAL PRESSURE --- */
+			if (copy_if_updated(ORB_ID(angacc_acc), &subs.angacc_acc_sub, &buf.angacc_acc)) {
+				log_msg.msg_type = LOG_AAA_MSG;
+				log_msg.body.log_AAA.angacc_x = buf.angacc_acc.ang_acc_x;
+				log_msg.body.log_AAA.angacc_y = buf.angacc_acc.ang_acc_y;
+				log_msg.body.log_AAA.angacc_z = buf.angacc_acc.ang_acc_z;
+				log_msg.body.log_AAA.acc_x = buf.angacc_acc.acc_x;
+				log_msg.body.log_AAA.acc_y = buf.angacc_acc.acc_y;
+				log_msg.body.log_AAA.acc_y = buf.angacc_acc.acc_z;
+				LOGBUFFER_WRITE_AND_COUNT(AAA);
 			}
 
 			/* --- ESCs --- */
