@@ -125,6 +125,8 @@ set(msg_file_names
 	vehicle_roi.msg
 	mount_orientation.msg
 	collision_report.msg
+
+	angacc_acc.msg
 	)
 
 # Get absolute paths

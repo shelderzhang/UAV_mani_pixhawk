@@ -179,6 +179,9 @@ set(config_module_list
 
 	# Hardware test
 	#examples/hwtest
+
+	# angular acceleration estimator
+	modules/angacc_acc_ekf
 )
 
 set(config_extra_builtin_cmds
