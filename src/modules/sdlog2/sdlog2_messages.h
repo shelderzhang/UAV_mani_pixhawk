@@ -655,7 +655,20 @@ struct log_AAF_s {
 	float acc_ff_y;
 	float acc_ff_z;
 };
-
+/* --- motion capture with velocity --- */
+#define LOG_MOCV_MSG 80
+struct log_MOCV_s {
+	float qw;
+	float qx;
+	float qy;
+	float qz;
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+};
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -748,6 +761,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(DPRS, "Qffff", "errors,DPRESraw,DPRES,DPRESmax,Temp"),
 	LOG_FORMAT(AAA,  "ffffff", "AAx,AAy,AAz,Ax,Ay,Az"),
 	LOG_FORMAT(AAF,  "ffffff", "AAFx,AAFy,AAFz,AFx,AFy,AFz"),
+	LOG_FORMAT(MOCV, "ffffffffff", "QuatW,QuatX,QuatY,QuatZ,X,Y,Z,Vx,Vy,Vz"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),

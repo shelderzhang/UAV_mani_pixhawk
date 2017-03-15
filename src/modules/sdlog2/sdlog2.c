@@ -114,6 +114,8 @@
 #include <uORB/topics/angacc_acc.h>
 #include <uORB/topics/angacc_acc_ff.h>
 
+#include <uORB/topics/att_pos_vel_mocap.h>
+
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
 #include <systemlib/perf_counter.h>
@@ -1226,6 +1228,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_gps_position_s dual_gps_pos;
 		struct angacc_acc_s angacc_acc;
 		struct angacc_acc_ff_s angacc_acc_ff;
+		struct att_pos_vel_mocap_s att_pos_vel_mocap;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1290,6 +1293,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_DPRS_s log_DPRS;
 			struct log_AAA_s log_AAA;
 			struct log_AAF_s log_AAF;
+			struct log_MOCV_s log_MOCV;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1342,6 +1346,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int diff_pres_sub;
 		int angacc_acc_sub;
 		int angacc_acc_ff_sub;
+		int att_pos_vel_mocap_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1387,6 +1392,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.diff_pres_sub = -1;
 	subs.angacc_acc_sub = -1;
 	subs.angacc_acc_ff_sub = -1;
+	subs.att_pos_vel_mocap_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2090,7 +2096,22 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_AAF.acc_ff_x = buf.angacc_acc_ff.acc_ff[0];
 				log_msg.body.log_AAF.acc_ff_y = buf.angacc_acc_ff.acc_ff[1];
 				log_msg.body.log_AAF.acc_ff_y = buf.angacc_acc_ff.acc_ff[2];
-				LOGBUFFER_WRITE_AND_COUNT(AAA);
+				LOGBUFFER_WRITE_AND_COUNT(AAF);
+			}
+
+			if(copy_if_updated(ORB_ID(att_pos_vel_mocap), &subs.att_pos_vel_mocap_sub, &buf.att_pos_vel_mocap)) {
+				log_msg.msg_type = LOG_MOCV_MSG;
+				log_msg.body.log_MOCV.qw = buf.att_pos_vel_mocap.q[0];
+				log_msg.body.log_MOCV.qx = buf.att_pos_vel_mocap.q[1];
+				log_msg.body.log_MOCV.qy = buf.att_pos_vel_mocap.q[2];
+				log_msg.body.log_MOCV.qz = buf.att_pos_vel_mocap.q[3];
+				log_msg.body.log_MOCV.x = buf.att_pos_vel_mocap.x;
+				log_msg.body.log_MOCV.y = buf.att_pos_vel_mocap.y;
+				log_msg.body.log_MOCV.z = buf.att_pos_vel_mocap.z;
+				log_msg.body.log_MOCV.vx = buf.att_pos_vel_mocap.vx;
+				log_msg.body.log_MOCV.vy = buf.att_pos_vel_mocap.vy;
+				log_msg.body.log_MOCV.vz = buf.att_pos_vel_mocap.vz;
+				LOGBUFFER_WRITE_AND_COUNT(MOCV);
 			}
 
 			/* --- ESCs --- */
