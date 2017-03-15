@@ -46,3 +46,5 @@ mc_pos_control start
 land_detector start multicopter
 
 mavlink start -d /dev/ttyS6 -b 57600
+
+angacc_acc_ekf start

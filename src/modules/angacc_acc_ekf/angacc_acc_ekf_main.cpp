@@ -142,7 +142,7 @@ private:
 
     uint64_t _timeStamp;
     bool _valid_acc;
-    px4_pollfd_struct_t _polls[2];
+    px4_pollfd_struct_t _poll;
 
     Vector<float, n_x> _x;		 // state Vector
 	Matrix<float, n_x, n_x>  _P; // state covariance matrix
@@ -170,13 +170,11 @@ AngaccAccEKF::AngaccAccEKF() :
     _xLowPass(this, "X_LP"),
 	_timeStamp(hrt_absolute_time()),
 	_valid_acc(false),
-    _polls(),
+    _poll(),
     _x(), _P(), _C(), _A(), _Q(), _R()
 {
-    _polls[0].fd = _sub_state.getHandle();
-	_polls[0].events = POLLIN;
-    _polls[1].fd = _sub_local_pos.getHandle();
-	_polls[1].events = POLLIN;
+    _poll.fd = _sub_state.getHandle();
+	_poll.events = POLLIN;
     _x.setZero();
 	initSS();
     // intialize parameter dependent matrices
@@ -185,13 +183,15 @@ AngaccAccEKF::AngaccAccEKF() :
 
 void AngaccAccEKF::update()
 {
-    int ret = px4_poll(&_polls[1],1,100);
+    int ret = px4_poll(&_poll, 1, 100);
 
     if (ret <= 0) {
         return;
     }
 
     _valid_acc = _sub_local_pos.check_updated();
+
+    PX4_INFO("_valid_acc:%d",_valid_acc);
 
     uint64_t newTimeStamp = hrt_absolute_time();
 	float dt = (newTimeStamp - _timeStamp) / 1.0e6f;
@@ -215,7 +215,7 @@ void AngaccAccEKF::update()
 		for (int j = 0; j <= i; j++) {
 			if (!PX4_ISFINITE(_P(i, j))) {
 				mavlink_and_console_log_info(&mavlink_log_pub,
-							     "[lpe] reinit P (%d, %d) not finite", i, j);
+							     "[AAE] reinit P (%d, %d) not finite", i, j);
 				reinit_P = true;
 			}
 
@@ -223,7 +223,7 @@ void AngaccAccEKF::update()
 				// make sure diagonal elements are positive
 				if (_P(i, i) <= 0) {
 					mavlink_and_console_log_info(&mavlink_log_pub,
-								     "[lpe] reinit P (%d, %d) negative", i, j);
+								     "[AAE] reinit P (%d, %d) negative", i, j);
 					reinit_P = true;
 				}
 
@@ -256,6 +256,9 @@ void AngaccAccEKF::update()
 	_pub_angacc_acc.get().acc_z = xLP(X_accz);
 	_pub_angacc_acc.get().valid_acc = _valid_acc;
     _pub_angacc_acc.update();
+
+    PX4_INFO("Angacc %8.4f, %8.4f, %8.4f", (double)xLP(X_angx), (double)xLP(X_angy), (double)xLP(X_angz));
+    PX4_INFO("Acc %8.4f, %8.4f, %8.4f", (double)xLP(X_accx), (double)xLP(X_accy), (double)xLP(X_accz));
 }
 
 void AngaccAccEKF::correct()
@@ -434,7 +437,7 @@ int angacc_acc_ekf_main(int argc, char *argv[])
 		deamon_task = px4_task_spawn_cmd("angacc_acc_ekf",
 						 SCHED_DEFAULT,
 						 SCHED_PRIORITY_MAX,
-						 1500,
+						 10000,
 						 angacc_acc_ekf_thread_main,
 						 (argv && argc > 2) ? (char *const *) &argv[2] : (char *const *) NULL);
 		return 0;
