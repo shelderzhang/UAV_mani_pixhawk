@@ -634,6 +634,21 @@ struct log_DPRS_s {
 	float temperature;
 };
 
+/* --- motion capture with velocity --- */
+#define LOG_MOCV_MSG 80
+struct log_MOCV_s {
+	float qw;
+	float qx;
+	float qy;
+	float qz;
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+};
+
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -724,6 +739,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
 	LOG_FORMAT(DPRS, "Qffff", "errors,DPRESraw,DPRES,DPRESmax,Temp"),
+	LOG_FORMAT(MOCV, "ffffffffff", "QuatW,QuatX,QuatY,QuatZ,X,Y,Z,Vx,Vy,Vz"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),
