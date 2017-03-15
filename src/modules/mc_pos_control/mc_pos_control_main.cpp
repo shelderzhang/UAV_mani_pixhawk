@@ -76,6 +76,8 @@
 #include <uORB/topics/vehicle_global_velocity_setpoint.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/vehicle_land_detected.h>
+#include <uORB/topics/angacc_acc.h>
+#include <uORB/topics/angacc_acc_ff.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/mavlink_log.h>
@@ -96,6 +98,8 @@
 #ifdef HOVERING_MODE
 	static math::Vector<3> hovering_point(1.0f, 0.0f, -1.5f);
 #endif
+
+#define ACC_FF
 
 /**
  * Multicopter position control app start / stop handling function
@@ -145,9 +149,12 @@ private:
 	int		_local_pos_sp_sub;		/**< offboard local position setpoint */
 	int		_global_vel_sp_sub;		/**< offboard global velocity setpoint */
 
+	int		_angacc_acc_sub;		/* angular acceleration and acceleration*/
+
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
+	orb_advert_t	_angacc_acc_ff_pub;		// angular acceleration and acceleration feedforwad --bdai
 
 	orb_id_t _attitude_setpoint_id;
 
@@ -162,9 +169,13 @@ private:
 	struct position_setpoint_triplet_s		_pos_sp_triplet;	/**< vehicle global position setpoint triplet */
 	struct vehicle_local_position_setpoint_s	_local_pos_sp;		/**< vehicle local position setpoint */
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
+	struct angacc_acc_s			_angacc_acc;
+	struct angacc_acc_ff_s				_angacc_acc_ff;
 
 	control::BlockParamFloat _manual_thr_min;
 	control::BlockParamFloat _manual_thr_max;
+	control::BlockParamFloat _acc_ff_a;
+	control::BlockParamFloat _mass;
 
 	control::BlockDerivative _vel_x_deriv;
 	control::BlockDerivative _vel_y_deriv;
@@ -283,7 +294,9 @@ private:
 	float _vel_z_lp;
 	float _acc_z_lp;
 	float _takeoff_thrust_sp;
-	bool control_vel_enabled_prev;	/**< previous loop was in velocity controlled mode (control_state.flag_control_velocity_enabled) */
+	bool _control_vel_enabled_prev;	/**< previous loop was in velocity controlled mode (control_state.flag_control_velocity_enabled) */
+
+	bool _angacc_acc_updated;
 
 	// counters for reset events on position and velocity states
 	// they are used to identify a reset event
@@ -392,11 +405,13 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_local_pos_sub(-1),
 	_pos_sp_triplet_sub(-1),
 	_global_vel_sp_sub(-1),
+	_angacc_acc_sub(-1),
 
 	/* publications */
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
 	_global_vel_sp_pub(nullptr),
+	_angacc_acc_ff_pub(nullptr),
 	_attitude_setpoint_id(0),
 	_vehicle_status{},
 	_vehicle_land_detected{},
@@ -409,8 +424,12 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_pos_sp_triplet{},
 	_local_pos_sp{},
 	_global_vel_sp{},
+	_angacc_acc{},
+	_angacc_acc_ff{},
 	_manual_thr_min(this, "MANTHR_MIN"),
 	_manual_thr_max(this, "MANTHR_MAX"),
+	_acc_ff_a(this, "FF_ACC"),
+	_mass(this, "MASS"),
 	_vel_x_deriv(this, "VELD"),
 	_vel_y_deriv(this, "VELD"),
 	_vel_z_deriv(this, "VELD"),
@@ -435,7 +454,8 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_vel_z_lp(0),
 	_acc_z_lp(0),
 	_takeoff_thrust_sp(0.0f),
-	control_vel_enabled_prev(false),
+	_control_vel_enabled_prev(false),
+	_angacc_acc_updated(false),
 	_z_reset_counter(0),
 	_xy_reset_counter(0),
 	_vz_reset_counter(0),
@@ -786,6 +806,14 @@ MulticopterPositionControl::poll_subscriptions()
 		_xy_reset_counter = _local_pos.xy_reset_counter;
 		_vz_reset_counter = _local_pos.vz_reset_counter;
 		_vxy_reset_counter = _local_pos.vxy_reset_counter;
+	}
+
+	orb_check(_angacc_acc_sub, &updated);
+	if (updated) {
+		orb_copy(ORB_ID(angacc_acc), _angacc_acc_sub, &_angacc_acc);
+		_angacc_acc_updated = true;
+	} else {
+		_angacc_acc_updated = false;
 	}
 }
 
@@ -1692,7 +1720,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp_prev(1) = _vel(1);
 					_vel_sp(0) = 0.0f;
 					_vel_sp(1) = 0.0f;
-					control_vel_enabled_prev = false;
+					_control_vel_enabled_prev = false;
 				}
 
 				if (!_control_mode.flag_control_climb_rate_enabled) {
@@ -1822,7 +1850,7 @@ MulticopterPositionControl::task_main()
 
 					// check if we have switched from a non-velocity controlled mode into a velocity controlled mode
 					// if yes, then correct xy velocity setpoint such that the attitude setpoint is continuous
-					if (!control_vel_enabled_prev && _control_mode.flag_control_velocity_enabled) {
+					if (!_control_vel_enabled_prev && _control_mode.flag_control_velocity_enabled) {
 
 						matrix::Dcmf Rb = matrix::Quatf(_att_sp.q_d[0], _att_sp.q_d[1], _att_sp.q_d[2], _att_sp.q_d[3]);
 
@@ -1837,7 +1865,7 @@ MulticopterPositionControl::task_main()
 						_vel_sp_prev(0) = _vel_sp(0);
 						_vel_sp_prev(1) = _vel_sp(1);
 						_vel_sp_prev(2) = _vel_sp(2);
-						control_vel_enabled_prev = true;
+						_control_vel_enabled_prev = true;
 
 						// compute updated velocity error
 						vel_err = _vel_sp - _vel;
@@ -1852,6 +1880,33 @@ MulticopterPositionControl::task_main()
 					} else {
 						thrust_sp = vel_err.emult(_params.vel_p) + _vel_err_d.emult(_params.vel_d) + thrust_int;
 					}
+
+#ifdef ACC_FF		
+					static bool acc_ff_flag = false;
+					static math::Vector<3> pre_thrust_sp = thrust_sp;
+					static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
+					if (_manual.aux2 > 0.6f) {
+						if (acc_ff_flag == false) {	// first time in acc feed back mode
+							ff_value.zero();
+							if (_angacc_acc_updated && _angacc_acc.valid_acc) {
+								acc_ff_flag = true;
+								math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z);
+								ff_value +=  (thrust_sp - acc * _mass.get()) * (_acc_ff_a.get() * dt);
+							}
+						}
+					} else {
+						acc_ff_flag = false;
+						ff_value.zero();
+					}
+					thrust_sp += ff_value;
+
+							
+					if (_angacc_acc_ff_pub == nullptr) {
+						_angacc_acc_ff_pub = orb_advertise(ORB_ID(angacc_acc_ff), &_angacc_acc_ff);
+					} else {
+						orb_publish(ORB_ID(angacc_acc_ff), _angacc_acc_ff_pub, &_angacc_acc_ff);
+					}
+#endif
 
 					if (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF
 					    && !_takeoff_jumped && !_control_mode.flag_control_manual_enabled) {
@@ -2032,6 +2087,10 @@ MulticopterPositionControl::task_main()
 						}
 					}
 
+#ifdef ACC_FF
+					pre_thrust_sp = thrust_sp;
+#endif
+
 					/* calculate attitude setpoint from thrust vector */
 					if (_control_mode.flag_control_velocity_enabled || _control_mode.flag_control_acceleration_enabled) {
 						/* desired body_z axis = -normalize(thrust_vector) */
@@ -2145,7 +2204,7 @@ MulticopterPositionControl::task_main()
 			_mode_auto = false;
 			reset_int_z = true;
 			reset_int_xy = true;
-			control_vel_enabled_prev = false;
+			_control_vel_enabled_prev = false;
 
 			/* store last velocity in case a mode switch to position control occurs */
 			_vel_sp_prev = _vel;

@@ -520,3 +520,23 @@ PARAM_DEFINE_FLOAT(MPC_ACC_HOR_MAX, 5.0f);
  * @group Multicopter Position Control
  */
 PARAM_DEFINE_INT32(MPC_ALT_MODE, 0);
+
+/**
+ * Accelerate feedforward factor
+ *
+ * @min 0.0
+ * @max 100.0
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(MPC_FF_ACC, 5.0f);
+
+/**
+ * Vehicle mass
+ *
+ * @min 0.0
+ * @max 10.0
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(MPC_MASS, 0.85f);

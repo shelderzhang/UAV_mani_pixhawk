@@ -418,3 +418,43 @@ PARAM_DEFINE_FLOAT(MC_TPA_SLOPE, 1.0f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
+
+/**
+ * angular acceleration feed forward factor
+ *
+ * @min 0.0
+ * @max 100.0
+ * @decimal 2
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_FF_ANGACC, 5.0f);
+
+/**
+ * Inertial tensor in X direction
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_INERTIAL_X, 0.014f);
+
+/**
+ * Inertial tensor in Y direction
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_INERTIAL_Y, 0.014f);
+
+/**
+ * Inertial tensor in Z direction
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_INERTIAL_Z, 0.026f);

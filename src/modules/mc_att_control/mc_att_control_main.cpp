@@ -81,6 +81,9 @@
 #include <uORB/topics/multirotor_motor_limits.h>
 #include <uORB/topics/mc_att_ctrl_status.h>
 #include <uORB/topics/battery_status.h>
+#include <uORB/topics/angacc_acc.h>
+#include <uORB/topics/angacc_acc_ff.h>
+
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <systemlib/perf_counter.h>
@@ -107,6 +110,8 @@ extern "C" __EXPORT int mc_att_control_main(int argc, char *argv[]);
 #define AXIS_INDEX_PITCH 1
 #define AXIS_INDEX_YAW 2
 #define AXIS_COUNT 3
+
+#define ANGACC_FF
 
 class MulticopterAttitudeControl
 {
@@ -143,10 +148,12 @@ private:
 	int		_vehicle_status_sub;	/**< vehicle status subscription */
 	int 	_motor_limits_sub;		/**< motor limits subscription */
 	int 	_battery_status_sub;	/**< battery status subscription */
+	int 	_angacc_acc_sub;
 
 	orb_advert_t	_v_rates_sp_pub;		/**< rate setpoint publication */
 	orb_advert_t	_actuators_0_pub;		/**< attitude actuator controls publication */
 	orb_advert_t	_controller_status_pub;	/**< controller status publication */
+	orb_advert_t	_angacc_acc_ff_pub;		// angular acceleration and acceleration feedforwad
 
 	orb_id_t _rates_sp_id;	/**< pointer to correct rates setpoint uORB metadata structure */
 	orb_id_t _actuators_id;	/**< pointer to correct actuator controls0 uORB metadata structure */
@@ -164,6 +171,8 @@ private:
 	struct multirotor_motor_limits_s	_motor_limits;		/**< motor limits */
 	struct mc_att_ctrl_status_s 		_controller_status; /**< controller status */
 	struct battery_status_s				_battery_status;	/**< battery status */
+	struct angacc_acc_s					_angacc_acc;
+	struct angacc_acc_ff_s				_angacc_acc_ff;
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
 	perf_counter_t	_controller_latency_perf;
@@ -213,6 +222,11 @@ private:
 		param_t vtol_wv_yaw_rate_scale;
 
 		param_t bat_scale_en;
+		
+		param_t inertial_x;
+		param_t inertial_y;
+		param_t inertial_z;
+		param_t ff_angacc_a;
 
 	}		_params_handles;		/**< handles for interesting parameters */
 
@@ -222,6 +236,8 @@ private:
 		math::Vector<3> rate_i;				/**< I gain for angular rate error */
 		math::Vector<3> rate_d;				/**< D gain for angular rate error */
 		math::Vector<3>	rate_ff;			/**< Feedforward gain for desired rates */
+		math::Matrix<3,3> inertial;	// inertial matriax --bdai
+		float ff_angacc_a;			// angular feedforwad factor
 		float yaw_ff;						/**< yaw control feed-forward */
 
 		float tpa_breakpoint;				/**< Throttle PID Attenuation breakpoint */
@@ -304,6 +320,8 @@ private:
 	 */
 	void		battery_status_poll();
 
+	bool		angacc_acc_poll();
+
 	/**
 	 * Shim for calling task_main from task_create.
 	 */
@@ -334,11 +352,13 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_manual_control_sp_sub(-1),
 	_armed_sub(-1),
 	_vehicle_status_sub(-1),
+	_angacc_acc_sub(-1),
 
 	/* publications */
 	_v_rates_sp_pub(nullptr),
 	_actuators_0_pub(nullptr),
 	_controller_status_pub(nullptr),
+	_angacc_acc_ff_pub(nullptr),
 	_rates_sp_id(0),
 	_actuators_id(0),
 
@@ -360,6 +380,9 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	memset(&_vehicle_status, 0, sizeof(_vehicle_status));
 	memset(&_motor_limits, 0, sizeof(_motor_limits));
 	memset(&_controller_status, 0, sizeof(_controller_status));
+	memset(&_angacc_acc, 0, sizeof(_angacc_acc));
+	memset(&_angacc_acc_ff, 0, sizeof(_angacc_acc_ff));
+
 	_vehicle_status.is_rotary_wing = true;
 
 	_params.att_p.zero();
@@ -367,6 +390,8 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params.rate_i.zero();
 	_params.rate_d.zero();
 	_params.rate_ff.zero();
+	_params.inertial.zero();
+	_params.ff_angacc_a = 0.0f;
 	_params.yaw_ff = 0.0f;
 	_params.roll_rate_max = 0.0f;
 	_params.pitch_rate_max = 0.0f;
@@ -420,6 +445,11 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params_handles.vtol_opt_recovery_enabled	= param_find("VT_OPT_RECOV_EN");
 	_params_handles.vtol_wv_yaw_rate_scale		= param_find("VT_WV_YAWR_SCL");
 	_params_handles.bat_scale_en		= param_find("MC_BAT_SCALE_EN");
+
+	_params_handles.inertial_x		=	param_find("MC_INERTIAL_X");
+	_params_handles.inertial_y		=	param_find("MC_INERTIAL_Y");
+	_params_handles.inertial_z		=	param_find("MC_INERTIAL_Z");
+	_params_handles.ff_angacc_a		=	param_find("MC_FF_ANGACC");
 
 
 
@@ -554,6 +584,13 @@ MulticopterAttitudeControl::parameters_update()
 
 	_actuators_0_circuit_breaker_enabled = circuit_breaker_enabled("CBRK_RATE_CTRL", CBRK_RATE_CTRL_KEY);
 
+	param_get(_params_handles.inertial_x, &v);
+	_params.inertial(0, 0) = v;
+	param_get(_params_handles.inertial_y, &v);
+	_params.inertial(1, 1) = v;
+	param_get(_params_handles.inertial_z, &v);
+	_params.inertial(2, 2) = v;
+	param_get(_params_handles.ff_angacc_a, &_params.ff_angacc_a);
 	return OK;
 }
 
@@ -680,6 +717,19 @@ MulticopterAttitudeControl::battery_status_poll()
 	if (updated) {
 		orb_copy(ORB_ID(battery_status), _battery_status_sub, &_battery_status);
 	}
+}
+
+bool
+MulticopterAttitudeControl::angacc_acc_poll()
+{
+	/* check if there is a new message */
+	bool updated;
+	orb_check(_angacc_acc_sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(angacc_acc), _angacc_acc_sub, &_angacc_acc);
+	}
+	return updated;
 }
 
 /**
@@ -817,6 +867,40 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 
 	_att_control = _params.rate_p.emult(rates_err * tpa) + _params.rate_d.emult(_rates_prev - rates) / dt + _rates_int +
 		       _params.rate_ff.emult(_rates_sp);
+#ifdef ANGACC_FF
+	{
+		bool updated = angacc_acc_poll();
+		static bool angacc_ff_flag = false;
+		static math::Vector<3> pre_torque_sp = _att_control;
+		static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
+
+		if (_manual_control_sp.aux3 > 0.6f) {
+			if (angacc_ff_flag == false) {	// first time in acc feed back mode
+				ff_value.zero();
+			 	if (updated) {
+					angacc_ff_flag = true;
+					math::Vector<3> angacc(_angacc_acc.ang_acc_x, _angacc_acc.ang_acc_y, _angacc_acc.ang_acc_z);
+					ff_value +=  (_att_control - _params.inertial * angacc) * (_params.ff_angacc_a * dt);
+				 }
+			}
+		} else {
+			angacc_ff_flag = false;
+			ff_value.zero();
+		}
+		_att_control += ff_value;
+
+		_angacc_acc_ff.angacc_ff[0] = ff_value(0);
+		_angacc_acc_ff.angacc_ff[1] = ff_value(1);
+		_angacc_acc_ff.angacc_ff[2] = ff_value(2);
+		
+		if (_angacc_acc_ff_pub == nullptr) {
+			_angacc_acc_ff_pub = orb_advertise(ORB_ID(angacc_acc_ff), &_angacc_acc_ff);
+		} else {
+			orb_publish(ORB_ID(angacc_acc_ff), _angacc_acc_ff_pub, &_angacc_acc_ff);
+		}
+	}
+
+#endif
 
 	_rates_sp_prev = _rates_sp;
 	_rates_prev = rates;

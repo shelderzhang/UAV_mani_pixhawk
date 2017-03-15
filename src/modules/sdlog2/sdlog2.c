@@ -112,6 +112,7 @@
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
 #include <uORB/topics/angacc_acc.h>
+#include <uORB/topics/angacc_acc_ff.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1224,6 +1225,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct cpuload_s cpuload;
 		struct vehicle_gps_position_s dual_gps_pos;
 		struct angacc_acc_s angacc_acc;
+		struct angacc_acc_ff_s angacc_acc_ff;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1287,6 +1289,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_LOAD_s log_LOAD;
 			struct log_DPRS_s log_DPRS;
 			struct log_AAA_s log_AAA;
+			struct log_AAF_s log_AAF;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1338,6 +1341,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int cpuload_sub;
 		int diff_pres_sub;
 		int angacc_acc_sub;
+		int angacc_acc_ff_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1382,6 +1386,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.cpuload_sub = -1;
 	subs.diff_pres_sub = -1;
 	subs.angacc_acc_sub = -1;
+	subs.angacc_acc_ff_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2073,6 +2078,18 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_AAA.acc_x = buf.angacc_acc.acc_x;
 				log_msg.body.log_AAA.acc_y = buf.angacc_acc.acc_y;
 				log_msg.body.log_AAA.acc_y = buf.angacc_acc.acc_z;
+				LOGBUFFER_WRITE_AND_COUNT(AAA);
+			}
+
+						/* --- DIFFERENTIAL PRESSURE --- */
+			if (copy_if_updated(ORB_ID(angacc_acc_ff), &subs.angacc_acc_ff_sub, &buf.angacc_acc_ff)) {
+				log_msg.msg_type = LOG_AAF_MSG;
+				log_msg.body.log_AAF.angacc_ff_x = buf.angacc_acc_ff.angacc_ff[0];
+				log_msg.body.log_AAF.angacc_ff_y = buf.angacc_acc_ff.angacc_ff[1];
+				log_msg.body.log_AAF.angacc_ff_z = buf.angacc_acc_ff.angacc_ff[2];
+				log_msg.body.log_AAF.acc_ff_x = buf.angacc_acc_ff.acc_ff[0];
+				log_msg.body.log_AAF.acc_ff_y = buf.angacc_acc_ff.acc_ff[1];
+				log_msg.body.log_AAF.acc_ff_y = buf.angacc_acc_ff.acc_ff[2];
 				LOGBUFFER_WRITE_AND_COUNT(AAA);
 			}
 
