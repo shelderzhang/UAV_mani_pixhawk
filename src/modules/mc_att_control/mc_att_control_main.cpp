@@ -874,13 +874,17 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		static math::Vector<3> pre_torque_sp = _att_control;
 		static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
 
+		hrt_abstime timeNow = hrt_absolute_time();
+		static hrt_abstime pretimeStamp = timeNow;
+		float dt_ang_ff = (timeNow - pretimeStamp) * 1e-6f;
+
 		if (_manual_control_sp.aux3 > 0.6f) {
 			if (angacc_ff_flag == false) {	// first time in acc feed back mode
 				ff_value.zero();
 			 	if (updated) {
 					angacc_ff_flag = true;
 					math::Vector<3> angacc(_angacc_acc.ang_acc_x, _angacc_acc.ang_acc_y, _angacc_acc.ang_acc_z);
-					ff_value +=  (_att_control - _params.inertial * angacc) * (_params.ff_angacc_a * dt);
+					ff_value +=  (_att_control - _params.inertial * angacc) * (_params.ff_angacc_a * dt_ang_ff);
 				 }
 			}
 		} else {

@@ -1885,13 +1885,19 @@ MulticopterPositionControl::task_main()
 					static bool acc_ff_flag = false;
 					static math::Vector<3> pre_thrust_sp = thrust_sp;
 					static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
+
+					hrt_abstime timeNow = hrt_absolute_time();
+					static hrt_abstime pretimeStamp = timeNow;
+					float dt_acc_ff = (timeNow - pretimeStamp) * 1e-6f;
+					pretimeStamp = timeNow;
+
 					if (_manual.aux2 > 0.6f) {
 						if (acc_ff_flag == false) {	// first time in acc feed back mode
 							ff_value.zero();
 							if (_angacc_acc_updated && _angacc_acc.valid_acc) {
 								acc_ff_flag = true;
 								math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z);
-								ff_value +=  (thrust_sp - acc * _mass.get()) * (_acc_ff_a.get() * dt);
+								ff_value +=  (thrust_sp - acc * _mass.get()) * (_acc_ff_a.get() * dt_acc_ff);
 							}
 						}
 					} else {
