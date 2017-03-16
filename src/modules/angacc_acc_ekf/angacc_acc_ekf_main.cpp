@@ -217,14 +217,14 @@ void AngaccAccEKF::update()
         return;
     }
 
-    uint64_t timsStamp = hrt_absolute_time();
-    _dt_ang = (timsStamp - _pre_ang_timeStamp) / 1.0e6f;
-    _pre_ang_timeStamp = timsStamp;
+    uint64_t timeStamp = hrt_absolute_time();
+    _dt_ang = (timeStamp - _pre_ang_timeStamp) / 1.0e6f;
+    _pre_ang_timeStamp = timeStamp;
 
     _pos_updated = _sub_local_pos.check_updated();
     if (_pos_updated) {
-        _dt_acc = timsStamp - _pre_acc_timeStamp;
-        _pre_acc_timeStamp = timsStamp;
+        _dt_acc = (timeStamp - _pre_acc_timeStamp) / 1.0e6f;
+        _pre_acc_timeStamp = timeStamp;
     }
     updateSubscriptions();
 
@@ -240,14 +240,14 @@ void AngaccAccEKF::update()
     correct();
 
     const Vector<float, n_x_ang> &x_angLP = _x_angaccLowPass.getState();
-    _pub_angacc_acc.get().timestamp = timsStamp;
+    _pub_angacc_acc.get().timestamp = timeStamp;
     _pub_angacc_acc.get().ang_acc_x = x_angLP(X_angx);
     _pub_angacc_acc.get().ang_acc_y = x_angLP(X_angy);
     _pub_angacc_acc.get().ang_acc_z = x_angLP(X_angz);
     _pub_angacc_acc.get().valid_acc = _pos_updated;
 
+    const Vector<float, n_x_acc> &x_accLP = _x_accLowPass.getState();
     if (_pos_updated) {
-        const Vector<float, n_x_acc> &x_accLP = _x_accLowPass.getState();
         _pub_angacc_acc.get().acc_x = x_accLP(X_accx);
         _pub_angacc_acc.get().acc_y = x_accLP(X_accy);
         _pub_angacc_acc.get().acc_z = x_accLP(X_accz);
@@ -256,16 +256,15 @@ void AngaccAccEKF::update()
 
     // used update fake mocap information into qgroundcontrol, for monitoring angacc and acc
     {
-        _monitor_angacc_acc.get().timestamp = timsStamp;
+        _monitor_angacc_acc.get().timestamp = timeStamp;
         _monitor_angacc_acc.get().q[0] = x_angLP(X_angx);
         _monitor_angacc_acc.get().q[1] = x_angLP(X_angy);
         _monitor_angacc_acc.get().q[2] = x_angLP(X_angz);
         _monitor_angacc_acc.get().q[3] = _pos_updated;
         if (_pos_updated) {
-            const Vector<float, n_x_acc> &x_accLP = _x_accLowPass.getState();
-            _monitor_angacc_acc.get().x = x_accLP(X_accx);
+            _monitor_angacc_acc.get().x = x_accLP(X_angx);
             _monitor_angacc_acc.get().y = x_accLP(X_accy);
-            _monitor_angacc_acc.get().z = x_accLP(X_accz);
+            _monitor_angacc_acc.get().z = x_accLP(X_accy);
         }
          _monitor_angacc_acc.update();
     }
@@ -329,13 +328,17 @@ void AngaccAccEKF::predict()
     setDt(h);       //must set time, otherwise lowpass not work
     _x_angaccLowPass.update(_x_ang);
 
-        if (_pos_updated) {
+    if (_pos_updated) {
         h = _dt_acc;
-        _A_Acc = _A_Ang;
+        _A_Acc.setIdentity();
+        _A_Acc(X_velx, X_accx) = h;  //250 Hz
+        _A_Acc(X_vely, X_accy) = h;
+        _A_Acc(X_velz, X_accz) = h;
         _x_acc  = _A_Acc * _x_acc;
         // covPropagationLogic(_P);
         _P_Acc = _A_Acc * _P_Acc * _A_Acc.transpose() + _Q_Acc;
         setDt(h);
+        PX4_INFO("lowpass is: %8.4f", (double)_x_accLowPass.getFCut());
         _x_accLowPass.update(_x_acc);
     }
 }

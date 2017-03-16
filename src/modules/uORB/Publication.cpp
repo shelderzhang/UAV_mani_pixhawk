@@ -52,6 +52,7 @@
 #include "topics/filtered_bottom_flow.h"
 #include "topics/ekf2_innovations.h"
 #include "topics/angacc_acc.h"
+#include "topics/att_pos_mocap.h"
 
 #include <px4_defines.h>
 
@@ -124,5 +125,6 @@ template class __EXPORT Publication<rc_channels_s>;
 template class __EXPORT Publication<filtered_bottom_flow_s>;
 template class __EXPORT Publication<ekf2_innovations_s>;
 template class __EXPORT Publication<angacc_acc_s>;
+template class __EXPORT Publication<att_pos_mocap_s>;
 
 }
