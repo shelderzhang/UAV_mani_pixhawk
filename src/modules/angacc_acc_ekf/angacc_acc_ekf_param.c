@@ -112,6 +112,16 @@ PARAM_DEFINE_FLOAT(AAE_ACC_STD, 0.01f);
 PARAM_DEFINE_FLOAT(AAE_VEL_STD, 0.01f);
 
 /**
+ * Cut frequency
+ *
+ * @group Angular acceleration and acceleration estimator
+ * @min 5
+ * @max 100
+ * @decimal 0
+ */
+PARAM_DEFINE_FLOAT(AAE_X_ANG_LP, 20.0f);
+
+/**
  * Cut frequency for state publication
  *
  * @group Angular acceleration and acceleration estimator
@@ -119,4 +129,4 @@ PARAM_DEFINE_FLOAT(AAE_VEL_STD, 0.01f);
  * @max 100
  * @decimal 0
  */
-PARAM_DEFINE_FLOAT(AAE_X_LP, 20.0f);
+PARAM_DEFINE_FLOAT(AAE_X_ACC_LP, 10.0f);
