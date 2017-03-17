@@ -89,7 +89,7 @@ PARAM_DEFINE_FLOAT(AAE_PN_VEL, 0.05f);
  * @max 10
  * @decimal 3
  */
-PARAM_DEFINE_FLOAT(AAE_ANG_RATE, 0.01f);
+PARAM_DEFINE_FLOAT(AAE_STD_ANGRAT, 0.01f);
 
 /**
  * acceleration standard deviation
@@ -99,7 +99,7 @@ PARAM_DEFINE_FLOAT(AAE_ANG_RATE, 0.01f);
  * @max 10
  * @decimal 3
  */
-PARAM_DEFINE_FLOAT(AAE_ACC_STD, 0.01f);
+PARAM_DEFINE_FLOAT(AAE_STD_ACC, 0.01f);
 
 /**
  * velocity standard deviation
@@ -109,7 +109,7 @@ PARAM_DEFINE_FLOAT(AAE_ACC_STD, 0.01f);
  * @max 10
  * @decimal 3
  */
-PARAM_DEFINE_FLOAT(AAE_VEL_STD, 0.01f);
+PARAM_DEFINE_FLOAT(AAE_STD_VEL, 0.01f);
 
 /**
  * Cut frequency

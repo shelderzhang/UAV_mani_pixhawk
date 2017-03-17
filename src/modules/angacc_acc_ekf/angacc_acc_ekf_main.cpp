@@ -1,44 +1,3 @@
-/****************************************************************************
- *
- *   Copyright (c) 2015 PX4 Development Team. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name PX4 nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- ****************************************************************************/
-
-/*
- * @file angacc_acc_ekf.cpp
- *
- * Angular rate and acceleration estimator (ekf based)
- *
- * @author bdai <bdai1412@gmail.com>
- */
-
 #include <px4_config.h>
 #include <px4_posix.h>
 #include <unistd.h>
@@ -58,291 +17,221 @@
 #include <drivers/drv_hrt.h>
 #include <systemlib/mavlink_log.h>
 
+#include <uORB/uORB.h>
 // uORB Suscriptions
-#include <uORB/Subscription.hpp>
 #include <uORB/topics/control_state.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_local_position.h>
-
 // uORB Publications
-#include <uORB/Publication.hpp>
 #include <uORB/topics/angacc_acc.h>
 #include <uORB/topics/att_pos_mocap.h>
 
-// #define DIFF_LOWPASS
+// #define USING_ACCELEMETOR
 
 using namespace matrix;
 using namespace control;
 
 extern orb_advert_t mavlink_log_pub;
 
-static volatile bool thread_should_exit = false;     /**< Deamon exit flag */
-static volatile bool thread_running = false;     /**< Deamon status flag */
-static int deamon_task;             /**< Handle of deamon task / thread */
-
 extern "C" __EXPORT int angacc_acc_ekf_main(int argc, char *argv[]);
-int angacc_acc_ekf_thread_main(int argc, char *argv[]);
 
-class AngaccAccEKF : public control::SuperBlock
-{
-// dynamics:
-//
-//	x(+) = A * x(-)
-//	y = C*x
-//
-// kalman filter
-//
-//	E[xx'] = Q
-//	E[yy'] = R
-//
-//	prediction
-//		x(+|-) = A*x(-|-)
-//		P(+|-) = A*P(-|-)*A' + Q
-//
-//	correction
-//      K = P(+|-) * C' * inav(C * P(+|-) * C' + R)
-//		x(+|+) =  x(+|-) + K * (y - C * x(+|-) )
-//      P(+|+) = (I - K * C) * P(+|-)
-//
+class AngaccAccEKF : public control::SuperBlock {
+    // dynamics:
+    //
+    //	x(+) = A * x(-)
+    //	y = C*x
+    //
+    // kalman filter
+    //
+    //	E[xx'] = Q
+    //	E[yy'] = R
+    //
+    //	prediction
+    //		x(+|-) = A*x(-|-)
+    //		P(+|-) = A*P(-|-)*A' + Q
+    //
+    //	correction
+    //      K = P(+|-) * C' * inav(C * P(+|-) * C' + R)
+    //		x(+|+) =  x(+|-) + K * (y - C * x(+|-) )
+    //      P(+|+) = (I - K * C) * P(+|-)
+    //
+public:
+    enum {X_rx = 0, X_ry, X_rz, X_aax, X_aay, X_aaz, n_rx};
+    enum {Y_rx = 0, Y_ry, Y_rz, n_ry};
 
-public: 
-    enum {X_angx = 0, X_angy, X_angz, X_ratx, X_raty, X_ratz, n_x_ang};
-    enum {Y_ratx = 0, Y_raty, Y_ratz, n_y_ang};
+    enum {X_vx = 0, X_vy, X_vz, X_ax, X_ay, X_az, n_ax};
+#ifdef USING_ACCELEMETOR
+    enum {Y_vx = 0, Y_vy, Y_vz, Y_ax, Y_ay, Y_az, n_ay};
+#else
+    enum {Y_vx = 0, Y_vy, Y_vz, n_ay};
+#endif
     
-    enum {X_accx, X_accy, X_accz, X_velx, X_vely, X_velz, n_x_acc};
-    enum {Y_accx, Y_accy, Y_accz, Y_velx, Y_vely, Y_velz, n_y_acc};
-
     AngaccAccEKF();
-    ~AngaccAccEKF() {};
-    void update();
+    ~AngaccAccEKF();
+
+    int start();
+
 private:
-    // prevent copy and assignment
-    AngaccAccEKF(const AngaccAccEKF &);
-    AngaccAccEKF operator=(const AngaccAccEKF &);
+    bool _task_should_exit;
+    int _control_task;
 
-	void initSS();
-    void updateSSParams();
-    void predict();
-    void correct();
+    int _sub_ctrl_state;
+    int _sub_param_update;
+    int _sub_local_pos;
 
-    //publications
-    uORB::Publication<angacc_acc_s> _pub_angacc_acc;
-    uORB::Publication<att_pos_mocap_s> _monitor_angacc_acc; //only used for monitoring angacc and acc in qgroundcontrol
+    orb_advert_t _pub_angacc_acc;
+    orb_advert_t _pub_fake_mocap;       //for monitoring angacc and acc estimator
 
-    //subscriptions
-    uORB::Subscription<control_state_s> _sub_state;
-    uORB::Subscription<parameter_update_s> _sub_param_update;
-    uORB::Subscription<vehicle_local_position_s> _sub_local_pos;
+    struct control_state_s              _ctrl_state;
+    struct vehicle_local_position_s     _local_pos;
+    struct angacc_acc_s                 _angacc_acc;
+    struct att_pos_mocap_s              _fake_mocap;
 
-    //process noise
-    BlockParamFloat _pn_angacc_noise_density;
-    BlockParamFloat _pn_angrat_noise_density;
-    BlockParamFloat _pn_acc_noise_density;
-    BlockParamFloat _pn_vel_noise_density;
+    struct {
+        param_t pn_ang_acc;
+        param_t pn_ang_rate;
+        param_t pn_acc;
+        param_t pn_vel;
+        param_t std_ang_rate;
+        param_t std_acc;
+        param_t std_vel;
+    }   _params_handles;
 
-    // measurement noise
-    BlockParamFloat _ang_rat_stddev;
-    BlockParamFloat _acc_stddev;
-    BlockParamFloat _vel_stddev;
+    struct {
+        float pn_ang_acc;
+        float pn_ang_rate;
+        float pn_acc;
+        float pn_vel;
+        float std_ang_rate;
+        float std_acc;
+        float std_vel;
+    }   _params;
 
-    BlockLowPassVector<float, n_x_ang> _x_angaccLowPass;
-    BlockLowPassVector<float, n_x_acc> _x_accLowPass;
+    BlockLowPassVector<float, 6> _x_angaccLowPass;
+    BlockLowPassVector<float, 6> _x_accLowPass;
 
     uint64_t _pre_ang_timeStamp;
     uint64_t _pre_acc_timeStamp;
     float _dt_ang;
     float _dt_acc;
 
-    bool _valid_angacc;
-    bool _valid_acc;
-    bool _pos_updated;
+    bool _vel_updated;
     px4_pollfd_struct_t _polls;
 
-    Vector<float, n_x_ang> _x_ang;		 // state Vector
-	Matrix<float, n_x_ang, n_x_ang>  _P_Ang; // state covariance matrix
-    Matrix<float, n_y_ang, n_x_ang>  _C_Ang;
+    Vector<float, n_rx> _x_ang;		 // state Vector
+	Matrix<float, n_rx, n_rx>  _P_Ang; // state covariance matrix
+    Matrix<float, n_ry, n_rx>  _C_Ang;
 
-    Matrix<float, n_x_ang, n_x_ang>  _A_Ang; // dynamics matrix
-	Matrix<float, n_x_ang, n_x_ang>  _Q_Ang; // process noise covariance
-	Matrix<float, n_y_ang, n_y_ang>  _R_Ang; // measurement covariance
+    Matrix<float, n_rx, n_rx>  _A_Ang; // dynamics matrix
+	Matrix<float, n_rx, n_rx>  _Q_Ang; // process noise covariance
+	Matrix<float, n_ry, n_ry>  _R_Ang; // measurement covariance
 
-    Vector<float, n_x_acc> _x_acc;		 // state Vector
-	Matrix<float, n_x_acc, n_x_acc>  _P_Acc; // state covariance matrix
-    Matrix<float, n_y_acc, n_x_acc>  _C_Acc;
+    Vector<float, n_ax> _x_acc;		 // state Vector
+	Matrix<float, n_ax, n_ax>  _P_Acc; // state covariance matrix
+    Matrix<float, n_ay, n_ax>  _C_Acc;
 
-    Matrix<float, n_x_acc, n_x_acc>  _A_Acc; // dynamics matrix
-	Matrix<float, n_x_acc, n_x_acc>  _Q_Acc; // process noise covariance
-	Matrix<float, n_y_acc, n_y_acc>  _R_Acc; // measurement covariance
+    Matrix<float, n_ax, n_ax>  _A_Acc; // dynamics matrix
+	Matrix<float, n_ax, n_ax>  _Q_Acc; // process noise covariance
+    Matrix<float, n_ay, n_ay>  _R_Acc; // measurement covariance
 
+
+    /**
+	 * Update our local parameter cache.
+	 */
+	void	parameters_update();
+
+    void initSS();
+
+    void updateSSParams();
+    void predict();
+    void correct();
+
+    /**
+	 * Shim for calling task_main from task_create.
+	 */
+	static void	task_main_trampoline(int argc, char *argv[]);
+
+	/**
+	 * Main attitude control task.
+	 */
+	void		task_main();
 };
 
+namespace angacc_acc_ekf
+{
+AngaccAccEKF	*est_instant;
+}
+
 AngaccAccEKF::AngaccAccEKF() :
-    // This block has no parent, and has name AAE
     SuperBlock(NULL,"AAE"),
-    _pub_angacc_acc(ORB_ID(angacc_acc), -1, &getPublications()),
-    _monitor_angacc_acc(ORB_ID(att_pos_mocap), -1, &getPublications()),
-    _sub_state(ORB_ID(control_state), 1000/100, 0, &getSubscriptions()),
-    _sub_param_update(ORB_ID(parameter_update), 1000/2, 0, &getSubscriptions()),
-    _sub_local_pos(ORB_ID(vehicle_local_position), 1000/100, 0, &getSubscriptions()),
-    _pn_angacc_noise_density(this, "PN_ANGACC"),
-    _pn_angrat_noise_density(this, "PN_ANGRATE"),
-    _pn_acc_noise_density(this, "PN_ACC"),
-    _pn_vel_noise_density(this, "PN_VEL"),
-    _ang_rat_stddev(this, "ANG_RATE"),
-    _acc_stddev(this, "ACC_STD"),
-    _vel_stddev(this, "VEL_STD"),
-    _x_angaccLowPass(this, "X_ANG_LP"),
-    _x_accLowPass(this, "X_ACC_LP"),
+    _task_should_exit(false),
+    _control_task(-1),
+    _sub_ctrl_state(-1),
+    _sub_param_update(-1),
+    _sub_local_pos(-1),
+    _pub_angacc_acc(nullptr),
+    _pub_fake_mocap(nullptr),
+	_x_angaccLowPass(this, "X_ANG_LP"),
+	_x_accLowPass(this, "X_ACC_LP"),
 	_pre_ang_timeStamp(hrt_absolute_time()),
     _pre_acc_timeStamp(hrt_absolute_time()),
     _dt_ang(0.0f),
     _dt_acc(0.0f),
-	_valid_angacc(false),
-    _valid_acc(false),
-    _pos_updated(false)
+    _vel_updated(false)
 {
-    _polls.fd = _sub_state.getHandle();
-	_polls.events = POLLIN;
+    memset(&_ctrl_state, 0, sizeof(_ctrl_state));
+    memset(&_local_pos, 0, sizeof(_local_pos));
+    memset(&_angacc_acc, 0, sizeof(_angacc_acc));
+    memset(&_fake_mocap, 0, sizeof(_fake_mocap));
 
-	initSS();
-    // intialize parameter dependent matrices
-	updateParams();
-}
+    memset(&_params, 0, sizeof(_params));
 
-void AngaccAccEKF::update()
-{
-    int ret = px4_poll(&_polls, 1, 100);
-
-    if (ret <= 0) {
-        return;
-    }
-
-    uint64_t timeStamp = hrt_absolute_time();
-    _dt_ang = (timeStamp - _pre_ang_timeStamp) / 1.0e6f;
-    _pre_ang_timeStamp = timeStamp;
-
-    _pos_updated = _sub_local_pos.check_updated();
-    if (_pos_updated) {
-        _dt_acc = (timeStamp - _pre_acc_timeStamp) / 1.0e6f;
-        _pre_acc_timeStamp = timeStamp;
-    }
-    updateSubscriptions();
-
-    bool paramsUpdated = _sub_param_update.updated();
-
-	// update parameters
-	if (paramsUpdated) {
-		updateParams();
-		updateSSParams();
-	}
+    _params_handles.pn_ang_acc =    param_find("AAE_PN_ANGACC");
+    _params_handles.pn_ang_rate =   param_find("AAE_PN_ANGRATE");
+    _params_handles.pn_acc =        param_find("AAE_PN_ACC");
+    _params_handles.pn_vel =        param_find("AAE_PN_VEL");
+    _params_handles.std_ang_rate =  param_find("AAE_STD_ANGRAT");
+    _params_handles.std_acc =       param_find("AAE_STD_ACC");
+    _params_handles.std_vel =       param_find("AAE_STD_VEL");
     
-    predict();
-    correct();
-
-    const Vector<float, n_x_ang> &x_angLP = _x_angaccLowPass.getState();
-    _pub_angacc_acc.get().timestamp = timeStamp;
-    _pub_angacc_acc.get().ang_acc_x = x_angLP(X_angx);
-    _pub_angacc_acc.get().ang_acc_y = x_angLP(X_angy);
-    _pub_angacc_acc.get().ang_acc_z = x_angLP(X_angz);
-    _pub_angacc_acc.get().valid_acc = _pos_updated;
-
-    const Vector<float, n_x_acc> &x_accLP = _x_accLowPass.getState();
-    if (_pos_updated) {
-        _pub_angacc_acc.get().acc_x = x_accLP(X_accx);
-        _pub_angacc_acc.get().acc_y = x_accLP(X_accy);
-        _pub_angacc_acc.get().acc_z = x_accLP(X_accz);
-    }
-    _pub_angacc_acc.update();
-
-    // used update fake mocap information into qgroundcontrol, for monitoring angacc and acc
-    {
-        _monitor_angacc_acc.get().timestamp = timeStamp;
-        _monitor_angacc_acc.get().q[0] = x_angLP(X_angx);
-        _monitor_angacc_acc.get().q[1] = x_angLP(X_angy);
-        _monitor_angacc_acc.get().q[2] = x_angLP(X_angz);
-        _monitor_angacc_acc.get().q[3] = _pos_updated;
-        if (_pos_updated) {
-            _monitor_angacc_acc.get().x = x_accLP(X_angx);
-            _monitor_angacc_acc.get().y = x_accLP(X_accy);
-            _monitor_angacc_acc.get().z = x_accLP(X_accy);
-        }
-         _monitor_angacc_acc.update();
-    }
-   
+    parameters_update();
 }
 
-void AngaccAccEKF::correct()
+AngaccAccEKF::~AngaccAccEKF()
 {
-    Vector<float, n_y_ang> y_ang;
-    y_ang(Y_ratx) = _sub_state.get().roll_rate;
-    y_ang(Y_raty) = _sub_state.get().pitch_rate;
-    y_ang(Y_ratz) = _sub_state.get().yaw_rate;
-    Matrix<float, n_y_ang, n_y_ang> S_I_Ang = \
-        inv<float, n_y_ang>((_C_Ang * _P_Ang * _C_Ang.transpose()) + _R_Ang);
-    Matrix<float, n_y_ang, 1> r_ang = y_ang - _C_Ang * _x_ang;
+	if (_control_task != -1) {
+		/* task wakes up every 100ms or so at the longest */
+		_task_should_exit = true;
 
-    Matrix<float, n_x_ang, n_y_ang> _K_Ang = _P_Ang * _C_Ang.transpose() * S_I_Ang;
-    // correctionLogic(dx);
+		/* wait for a second for the task to quit at our request */
+		unsigned i = 0;
 
-    _x_ang += _K_Ang * r_ang;
-    _P_Ang -= _K_Ang * _C_Ang * _P_Ang;
+		do {
+			/* wait 20ms */
+			usleep(20000);
 
-    if (_pos_updated) {
-        Vector<float, n_y_acc> y_acc;
+			/* if we have given up, kill it */
+			if (++i > 50) {
+				px4_task_delete(_control_task);
+				break;
+			}
+		} while (_control_task != -1);
+	}
 
-        Quaternionf q(_sub_state.get().q[0], _sub_state.get().q[1],
-    					_sub_state.get().q[2], _sub_state.get().q[3]);
-        Dcmf R(q); //form body to word
-        Vector<float, 3> gb = R.transpose() * Vector3f(0.0f, 0.0f, 9.806f);
-        y_acc(Y_accx) = _sub_state.get().x_acc + gb(0);
-        y_acc(Y_accy) = _sub_state.get().y_acc + gb(1);
-        y_acc(Y_accz) = _sub_state.get().z_acc + gb(2);
-
-        y_acc(Y_velx) = _sub_local_pos.get().vx;
-        y_acc(Y_vely) = _sub_local_pos.get().vy;
-        y_acc(Y_velz) = _sub_local_pos.get().vz;
-
-        Matrix<float, n_y_acc, n_y_acc> S_I_Acc = \
-            inv<float, n_y_acc>((_C_Acc * _P_Acc * _C_Acc.transpose()) + _R_Acc);
-        Matrix<float, n_y_acc, 1> r_acc = y_acc - _C_Acc * _x_acc;
-
-        Matrix<float, n_x_acc, n_y_acc> _K_Acc = _P_Acc * _C_Acc.transpose() * S_I_Acc;
-        // correctionLogic(dx);
-
-        _x_acc += _K_Acc * r_acc;
-        _P_Acc -= _K_Acc * _C_Acc * _P_Acc;
-    }
+	angacc_acc_ekf::est_instant = nullptr;
 }
 
-void AngaccAccEKF::predict()
-{
-    float h = _dt_ang;
-    _A_Ang.setIdentity();
-    _A_Ang(X_ratx, X_angx) = h;  //250 Hz
-    _A_Ang(X_raty, X_angy) = h;
-    _A_Ang(X_ratz, X_angz) = h;
-    _x_ang  = _A_Ang * _x_ang;
-    // covPropagationLogic(_P);
-    _P_Ang = _A_Ang * _P_Ang * _A_Ang.transpose() + _Q_Ang;
 
-    setDt(h);       //must set time, otherwise lowpass not work
-    _x_angaccLowPass.update(_x_ang);
-
-    if (_pos_updated) {
-        h = _dt_acc;
-        _A_Acc.setIdentity();
-        _A_Acc(X_velx, X_accx) = h;  //250 Hz
-        _A_Acc(X_vely, X_accy) = h;
-        _A_Acc(X_velz, X_accz) = h;
-        _x_acc  = _A_Acc * _x_acc;
-        // covPropagationLogic(_P);
-        _P_Acc = _A_Acc * _P_Acc * _A_Acc.transpose() + _Q_Acc;
-        setDt(h);
-        PX4_INFO("lowpass is: %8.4f", (double)_x_accLowPass.getFCut());
-        _x_accLowPass.update(_x_acc);
-    }
+void AngaccAccEKF::parameters_update()
+{   
+    param_get(_params_handles.pn_ang_acc, &_params.pn_ang_acc);
+    param_get(_params_handles.pn_ang_rate, &_params.pn_ang_rate);
+    param_get(_params_handles.pn_acc, &_params.pn_acc);
+    param_get(_params_handles.pn_vel, &_params.pn_vel);
+    param_get(_params_handles.std_ang_rate, &_params.std_ang_rate);
+    param_get(_params_handles.std_acc, &_params.std_acc);
+    param_get(_params_handles.std_vel, &_params.std_vel);
 }
-
 
 void AngaccAccEKF::initSS()
 {
@@ -350,177 +239,338 @@ void AngaccAccEKF::initSS()
     _x_acc.setZero();
 
     _P_Ang.setZero();
-    float p_ang_init = 1e-6;
-    _P_Ang(X_angx, X_angx) = p_ang_init;
-    _P_Ang(X_angy, X_angy) = p_ang_init;
-    _P_Ang(X_angz, X_angz) = p_ang_init;
-    _P_Ang(X_ratx, X_ratx) = p_ang_init;
-    _P_Ang(X_raty, X_raty) = p_ang_init;
-    _P_Ang(X_ratz, X_ratz) = p_ang_init;
+    float p_ang_init = 1.0e-2f;
+    _P_Ang(X_rx, X_rx) = p_ang_init;
+    _P_Ang(X_ry, X_ry) = p_ang_init;
+    _P_Ang(X_rz, X_rz) = p_ang_init;
+    _P_Ang(X_aax, X_aax) = p_ang_init;
+    _P_Ang(X_aay, X_aay) = p_ang_init;
+    _P_Ang(X_aaz, X_aaz) = p_ang_init;
 
     _P_Acc.setZero();
-    float p_acc_init = 1e-5;
-    _P_Acc(X_accx, X_accx) = p_acc_init;
-    _P_Acc(X_accy, X_accy) = p_acc_init;
-    _P_Acc(X_accz, X_accz) = p_acc_init;
-    _P_Acc(X_velx, X_velx) = p_acc_init;
-    _P_Acc(X_vely, X_vely) = p_acc_init;
-    _P_Acc(X_velz, X_velz) = p_acc_init;
+    float p_acc_init = 1.0e-2f;
+    _P_Acc(X_vx, X_vx) = p_acc_init;
+    _P_Acc(X_vy, X_vy) = p_acc_init;
+    _P_Acc(X_vz, X_vz) = p_acc_init;
+    _P_Acc(X_ax, X_ax) = p_acc_init;
+    _P_Acc(X_ay, X_ay) = p_acc_init;
+    _P_Acc(X_az, X_az) = p_acc_init;
 
     _A_Ang.setIdentity();
-    float a_ang_init = 4e-3;
-    _A_Ang(X_ratx, X_angx) = a_ang_init;  //250 Hz
-    _A_Ang(X_raty, X_angy) = a_ang_init;
-    _A_Ang(X_ratz, X_angz) = a_ang_init;
+    float a_ang_init = 4.0e-3f;
+    _A_Ang(X_rx, X_aax) = a_ang_init;  //250 Hz
+    _A_Ang(X_ry, X_aay) = a_ang_init;
+    _A_Ang(X_rz, X_aaz) = a_ang_init;
 
     _A_Acc.setIdentity();
-    float a_acc_init = 4e-3;
-    _A_Acc(X_velx, X_accx) = a_acc_init;  //250 Hz
-    _A_Acc(X_vely, X_accy) = a_acc_init;
-    _A_Acc(X_velz, X_accz) = a_acc_init;
+    float a_acc_init = 8.0e-3;
+    _A_Acc(X_vx, X_ax) = a_acc_init;  //250 Hz
+    _A_Acc(X_vy, X_ay) = a_acc_init;
+    _A_Acc(X_vz, X_az) = a_acc_init;
     
     _C_Ang.setZero();
-    _C_Ang(Y_ratx, X_ratx) = 1;
-    _C_Ang(Y_raty, X_raty) = 1;
-    _C_Ang(Y_ratz, X_ratz) = 1;
+    _C_Ang(Y_rx, X_rx) = 1;
+    _C_Ang(Y_ry, X_ry) = 1;
+    _C_Ang(Y_rz, X_rz) = 1;
 
+#ifdef USING_ACCELEMETOR
+    _C_Acc.setIdentity();
+#else
     _C_Acc.setZero();
-    _C_Acc(Y_accx, X_accx) = 1;
-    _C_Acc(Y_accy, X_accy) = 1;
-    _C_Acc(Y_accz, X_accz) = 1;
-    _C_Acc(Y_velx, X_velx) = 1;
-    _C_Acc(Y_vely, X_vely) = 1;
-    _C_Acc(Y_velz, X_velz) = 1;
-
+    _C_Acc(Y_vx, X_vx) = 1;
+    _C_Acc(Y_vy, X_vy) = 1;
+    _C_Acc(Y_vz, X_vz) = 1;
+#endif
     updateSSParams();
 }
-    
+
 void AngaccAccEKF::updateSSParams()
 {
     _Q_Ang.setZero();
-    float pn_ang_sq = _pn_angacc_noise_density.get() * _pn_angacc_noise_density.get();
-    float pn_rat_sq = _pn_angrat_noise_density.get() * _pn_angrat_noise_density.get();
-    _Q_Ang(X_angx, X_angx) = pn_ang_sq;
-    _Q_Ang(X_angy, X_angy) = pn_ang_sq;
-    _Q_Ang(X_angz, X_angz) = pn_ang_sq;
-    _Q_Ang(X_ratx, X_ratx) = pn_rat_sq;
-    _Q_Ang(X_raty, X_raty) = pn_rat_sq;
-    _Q_Ang(X_ratz, X_ratz) = pn_rat_sq;
+    float pn_ang_sq = _params.pn_ang_acc * _params.pn_ang_acc;
+    float pn_rat_sq = _params.pn_ang_rate * _params.pn_ang_rate;
+    _Q_Ang(X_rx, X_rx) = pn_rat_sq;
+    _Q_Ang(X_ry, X_ry) = pn_rat_sq;
+    _Q_Ang(X_rz, X_rz) = pn_rat_sq;
+    _Q_Ang(X_aax, X_aaz) = pn_ang_sq;
+    _Q_Ang(X_aay, X_aaz) = pn_ang_sq;
+    _Q_Ang(X_aaz, X_aaz) = pn_ang_sq;
 
     _Q_Acc.setZero();
-    float pn_acc_sq = _pn_acc_noise_density.get() * _pn_acc_noise_density.get();
-    float pn_vel_sq = _pn_vel_noise_density.get() * _pn_vel_noise_density.get();
-    _Q_Acc(X_accx, X_accx) = pn_acc_sq;
-    _Q_Acc(X_accy, X_accy) = pn_acc_sq;
-    _Q_Acc(X_accz, X_accz) = pn_acc_sq;
-    _Q_Acc(X_velx, X_velx) = pn_vel_sq;
-    _Q_Acc(X_vely, X_vely) = pn_vel_sq;
-    _Q_Acc(X_velz, X_velz) = pn_vel_sq;
+    float pn_acc_sq = _params.pn_acc * _params.pn_acc;
+    float pn_vel_sq = _params.pn_vel * _params.pn_vel;
+    _Q_Acc(X_vx, X_vx) = pn_vel_sq;
+    _Q_Acc(X_vy, X_vy) = pn_vel_sq;
+    _Q_Acc(X_vz, X_vz) = pn_vel_sq;
+    _Q_Acc(X_ax, X_ax) = pn_acc_sq;
+    _Q_Acc(X_ay, X_ay) = pn_acc_sq;
+    _Q_Acc(X_az, X_az) = pn_acc_sq;
 
     _R_Ang.setZero();
-    float ang_rat_p_var = _ang_rat_stddev.get() * _ang_rat_stddev.get();
-    _R_Ang(Y_ratx, Y_ratx) = ang_rat_p_var;
-	_R_Ang(Y_raty, Y_raty) = ang_rat_p_var;
-	_R_Ang(Y_ratz, Y_ratz) = ang_rat_p_var;
+    float ang_rat_p_var = _params.std_ang_rate * _params.std_ang_rate;
+    _R_Ang(Y_rx, Y_rx) = ang_rat_p_var;
+	_R_Ang(Y_ry, Y_ry) = ang_rat_p_var;
+	_R_Ang(Y_rz, Y_rz) = ang_rat_p_var;
 
     _R_Acc.setZero();
-    float acc_p_var = _acc_stddev.get() * _acc_stddev.get();
-    float vel_p_var = _vel_stddev.get() * _vel_stddev.get();
-    _R_Acc(Y_accx, Y_accx) = acc_p_var;
-	_R_Acc(Y_accy, Y_accy) = acc_p_var;
-	_R_Acc(Y_accz, Y_accz) = acc_p_var;
-    _R_Acc(Y_velx, Y_velx) = vel_p_var;
-	_R_Acc(Y_vely, Y_vely) = vel_p_var;
-	_R_Acc(Y_velz, Y_velz) = vel_p_var;
+    float vel_p_var = _params.std_vel * _params.std_vel;
+    _R_Acc(Y_vx, Y_vx) = vel_p_var;
+	_R_Acc(Y_vy, Y_vy) = vel_p_var;
+	_R_Acc(Y_vz, Y_vz) = vel_p_var;
+#ifdef USING_ACCELEMETOR
+    float acc_p_var = _params.std_acc * _params.std_acc;
+    _R_Acc(Y_ax, Y_ax) = acc_p_var;
+	_R_Acc(Y_ay, Y_ay) = acc_p_var;
+	_R_Acc(Y_az, Y_az) = acc_p_var;
+#endif
 }
 
-
-
-/**
- * Print the correct usage.
- */
-static int usage(const char *reason);
-
-static int
-usage(const char *reason)
+void
+AngaccAccEKF::task_main_trampoline(int argc, char *argv[])
 {
-	if (reason) {
-		fprintf(stderr, "%s\n", reason);
+	angacc_acc_ekf::est_instant->task_main();
+}
+
+void AngaccAccEKF::task_main(){
+    //do subscriptions
+    _sub_ctrl_state = orb_subscribe(ORB_ID(control_state));
+    _sub_param_update = orb_subscribe(ORB_ID(parameter_update));
+    _sub_local_pos = orb_subscribe(ORB_ID(vehicle_local_position));
+    initSS();
+
+    parameters_update();
+
+    px4_pollfd_struct_t fds[1];
+    fds[0].fd = _sub_ctrl_state;
+	fds[0].events = POLLIN;
+
+    while (!_task_should_exit) {
+        int pret = px4_poll(&fds[0], (sizeof(fds) / sizeof(fds[0])), 80);
+
+        /* timed out - periodic check for _task_should_exit */
+		if (pret == 0) {
+			continue;
+		}
+
+        /* this is undesirable but not much we can do - might want to flag unhappy status */
+		if (pret < 0) {
+			warn("angacc acc: poll error %d, %d", pret, errno);
+			/* sleep a bit before next try */
+			usleep(100000);
+			continue;
+		}
+
+        if (fds[0].revents & POLLIN) {
+            uint64_t timeStamp = hrt_absolute_time();
+            _dt_ang = (timeStamp - _pre_ang_timeStamp) / 1.0e6f;
+            _pre_ang_timeStamp = timeStamp;
+            
+            orb_copy(ORB_ID(control_state), _sub_ctrl_state, &_ctrl_state);
+            bool updated;
+            orb_check(_sub_param_update, &updated);
+            if (updated) {
+                parameters_update();
+		        updateSSParams();
+            }
+
+            orb_check(_sub_local_pos, &updated);
+
+            _vel_updated = updated;
+            if (updated) {
+                _dt_acc = (timeStamp - _pre_acc_timeStamp) / 1.0e6f;
+                _pre_acc_timeStamp = timeStamp;
+                orb_copy(ORB_ID(vehicle_local_position), _sub_local_pos, &_local_pos);
+                // PX4_INFO("local: %8.4f,%8.4f,%8.4f",(double)_local_pos.vx,(double)_local_pos.vy,(double)_local_pos.vz);
+            }
+
+            predict();
+            correct();
+
+            //publish
+            const Vector<float, 6> &x_angLP = _x_angaccLowPass.getState();
+            _fake_mocap.timestamp   = _angacc_acc.timestamp = timeStamp;
+            _fake_mocap.q[0]        = _angacc_acc.ang_acc_x = x_angLP(X_aax);
+            _fake_mocap.q[1]        = _angacc_acc.ang_acc_y = x_angLP(X_aay);
+            _fake_mocap.q[2]        = _angacc_acc.ang_acc_z = x_angLP(X_aaz);
+            _fake_mocap.q[3]        = _angacc_acc.valid_acc = _vel_updated;
+
+            const Vector<float, 6> &x_accLP = _x_accLowPass.getState();
+            if (_vel_updated) {
+                 _fake_mocap.x = _angacc_acc.acc_x = x_accLP(X_ax);
+                 _fake_mocap.y = _angacc_acc.acc_y = x_accLP(X_ay);
+                 _fake_mocap.z = _angacc_acc.acc_z = x_accLP(X_az);
+            }
+            
+
+            if (_pub_angacc_acc == nullptr) {
+                _pub_angacc_acc = orb_advertise(ORB_ID(angacc_acc), &_angacc_acc);
+            } else {
+                orb_publish(ORB_ID(angacc_acc), _pub_angacc_acc, &_angacc_acc);
+            }
+
+            if (_pub_fake_mocap == nullptr) {
+                _pub_fake_mocap = orb_advertise(ORB_ID(att_pos_mocap), &_fake_mocap);
+            } else {
+                orb_publish(ORB_ID(att_pos_mocap), _pub_fake_mocap, &_fake_mocap);
+            }
+            // PX4_INFO("angacc: %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f", 
+            //         (double)_angacc_acc.ang_acc_x,
+            //         (double)_angacc_acc.ang_acc_y,
+            //         (double)_angacc_acc.ang_acc_z,
+            //         (double)_angacc_acc.acc_x,
+            //         (double)_angacc_acc.acc_y,
+            //         (double)_angacc_acc.acc_z );
+        }
+    }
+}
+
+void AngaccAccEKF::predict() {
+    float h = _dt_ang;
+    _A_Ang.setIdentity();
+    _A_Ang(X_rx, X_aax) = h;  //250 Hz
+    _A_Ang(X_ry, X_aay) = h;
+    _A_Ang(X_rz, X_aaz) = h;
+
+    PX4_INFO("time, %8.4f",(double) h);
+
+    _x_ang  = _A_Ang * _x_ang;
+    // covPropagationLogic(_P);
+    _P_Ang = _A_Ang * _P_Ang * _A_Ang.transpose() + _Q_Ang;
+    
+    setDt(h);       //must set time, otherwise lowpass not work
+    _x_angaccLowPass.update(_x_ang);
+
+    if (_vel_updated) {
+        h = _dt_acc;
+        PX4_INFO("time2, %8.4f",(double) h);
+        _A_Acc.setIdentity();
+        _A_Acc(X_vx, X_ax) = h;
+        _A_Acc(X_vy, X_ay) = h;
+        _A_Acc(X_vz, X_az) = h;
+        _x_acc  = _A_Acc * _x_acc;
+        // covPropagationLogic(_P);
+        _P_Acc = _A_Acc * _P_Acc * _A_Acc.transpose() + _Q_Acc;
+        setDt(h);
+        PX4_INFO("_dt_acc is: %8.4f", (double)_dt_acc);
+        _x_accLowPass.update(_x_acc);
+    }
+}
+
+void AngaccAccEKF::correct() {
+
+    Vector<float, n_ry> y_ang;
+    y_ang(Y_rx) = _ctrl_state.roll_rate;
+    y_ang(Y_ry) = _ctrl_state.pitch_rate;
+    y_ang(Y_rz) = _ctrl_state.yaw_rate;
+    Matrix<float, n_ry, n_ry> S_I_Ang = inv<float, 3>((_C_Ang * _P_Ang * _C_Ang.transpose()) + _R_Ang);
+    Matrix<float, n_ry, 1> r_ang = y_ang - _C_Ang * _x_ang;
+
+    Matrix<float,n_rx, n_ry> _K_Ang = _P_Ang * _C_Ang.transpose() * S_I_Ang;
+    // correctionLogic(dx);
+
+    _x_ang += _K_Ang * r_ang;
+    _P_Ang -= _K_Ang * _C_Ang * _P_Ang;
+
+    if (_vel_updated) {
+        Vector<float, n_ay> y_acc;
+        y_acc(Y_vx) = _local_pos.vx;
+        y_acc(Y_vy) = _local_pos.vy;
+        y_acc(Y_vz) = _local_pos.vz;
+
+#ifdef USING_ACCELEMETOR
+
+        Quaternionf q(_ctrl_state.q[0], _ctrl_state.q[1],
+    					_ctrl_state.q[2], _ctrl_state.q[3]);
+        Dcmf R(q); //form body to word
+        Vector<float, 3> gb = R.transpose() * Vector3f(0.0f, 0.0f, 9.806f);
+        y_acc(Y_ax) = _ctrl_state.x_acc + gb(0);
+        y_acc(Y_ay) = _ctrl_state.y_acc + gb(1);
+        y_acc(Y_az) = _ctrl_state.z_acc + gb(2);
+#endif
+
+        Matrix<float, n_ay, n_ay> S_I_Acc = \
+            inv<float, n_ay>((_C_Acc * _P_Acc * _C_Acc.transpose()) + _R_Acc);
+        Matrix<float, n_ay, 1> r_acc = y_acc - _C_Acc * _x_acc;
+
+        Matrix<float, n_ax, n_ay> _K_Acc = _P_Acc * _C_Acc.transpose() * S_I_Acc;
+        // correctionLogic(dx);
+
+        _x_acc += _K_Acc * r_acc;
+        _P_Acc -= _K_Acc * _C_Acc * _P_Acc;
+    } 
+}
+
+int AngaccAccEKF::start()
+{
+	/* start the task */
+	_control_task = px4_task_spawn_cmd("angacc_acc_ekf",
+					   SCHED_DEFAULT,
+					   SCHED_PRIORITY_MAX - 2,
+					   5000,
+					   (px4_main_t)&AngaccAccEKF::task_main_trampoline,
+					   nullptr);
+
+	if (_control_task < 0) {
+		warn("task start failed");
+		return -errno;
 	}
 
-	fprintf(stderr, "usage: angacc_acc_ekf {start|stop|status} [-p <additional params>]\n\n");
-	return 1;
+	return OK;
 }
+
 
 int angacc_acc_ekf_main(int argc, char *argv[])
 {
-
 	if (argc < 2) {
-		usage("missing command");
+		warnx("usage: angacc_acc_ekf {start|stop|status}");
+		return 1;
 	}
 
 	if (!strcmp(argv[1], "start")) {
-
-		if (thread_running) {
-			PX4_INFO("already running");
-			/* this is not an error */
-			return 0;
+		if (angacc_acc_ekf::est_instant != nullptr) {
+			warnx("already running");
+			return 1;
 		}
 
-		thread_should_exit = false;
+		angacc_acc_ekf::est_instant = new AngaccAccEKF;
 
-		deamon_task = px4_task_spawn_cmd("angacc_acc_ekf",
-						 SCHED_DEFAULT,
-						 SCHED_PRIORITY_MAX,
-						 5000,
-						 angacc_acc_ekf_thread_main,
-						 (argv && argc > 2) ? (char *const *) &argv[2] : (char *const *) NULL);
+		if (angacc_acc_ekf::est_instant == nullptr) {
+			warnx("alloc failed");
+			return 1;
+		}
+
+		if (OK != angacc_acc_ekf::est_instant->start()) {
+			delete angacc_acc_ekf::est_instant;
+			angacc_acc_ekf::est_instant = nullptr;
+			warnx("start failed");
+			return 1;
+		}
+
 		return 0;
 	}
 
 	if (!strcmp(argv[1], "stop")) {
-		if (thread_running) {
-			PX4_DEBUG("stop");
-			thread_should_exit = true;
-
-		} else {
-			PX4_WARN("not started");
+		if (angacc_acc_ekf::est_instant == nullptr) {
+			warnx("not running");
+			return 1;
 		}
 
+		delete angacc_acc_ekf::est_instant;
+		angacc_acc_ekf::est_instant = nullptr;
 		return 0;
 	}
 
 	if (!strcmp(argv[1], "status")) {
-		if (thread_running) {
-			PX4_INFO("is running");
+		if (angacc_acc_ekf::est_instant) {
+			warnx("running");
+			return 0;
 
 		} else {
-			PX4_INFO("not started");
+			warnx("not running");
+			return 1;
 		}
-
-		return 0;
 	}
 
-	usage("unrecognized command");
+	warnx("unrecognized command");
 	return 1;
-}
-
-int angacc_acc_ekf_thread_main(int argc, char *argv[])
-{
-
-	PX4_DEBUG("starting");
-
-	AngaccAccEKF est;
-
-	thread_running = true;
-
-	while (!thread_should_exit) {
-		est.update();
-	}
-
-	PX4_DEBUG("exiting.");
-
-	thread_running = false;
-
-	return 0;
 }

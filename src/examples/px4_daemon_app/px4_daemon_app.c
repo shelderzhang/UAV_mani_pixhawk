@@ -49,6 +49,9 @@
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 
+#include <uORB/uORB.h>
+#include <uORB/topics/att_pos_mocap.h>
+
 static bool thread_should_exit = false;		/**< daemon exit flag */
 static bool thread_running = false;		/**< daemon status flag */
 static int daemon_task;				/**< Handle of daemon task / thread */
@@ -137,10 +140,28 @@ int px4_daemon_thread_main(int argc, char *argv[])
 	warnx("[daemon] starting\n");
 
 	thread_running = true;
-
+	int 	_mocap_sub = orb_subscribe(ORB_ID(att_pos_mocap));
 	while (!thread_should_exit) {
-		warnx("Hello daemon!\n");
-		sleep(10);
+		
+		struct att_pos_mocap_s	_mocap ;
+
+		bool updated = false;
+		orb_check(_mocap_sub, &updated);
+
+		if (updated) {
+			orb_copy(ORB_ID(att_pos_mocap), _mocap_sub, &_mocap);
+
+			warnx("MOCAP is : %8.4f,%8.4f,%8.4f,%8.4f,%8.4f,%8.4f,%8.4f\n",\
+				 (double)_mocap.q[0], 
+				 (double)_mocap.q[1],
+				 (double)_mocap.q[2],
+				 (double)_mocap.q[3],
+				 (double) _mocap.x,
+				 (double) _mocap.y,
+				 (double) _mocap.z);
+		}
+
+		usleep(100000);
 	}
 
 	warnx("[daemon] exiting.\n");

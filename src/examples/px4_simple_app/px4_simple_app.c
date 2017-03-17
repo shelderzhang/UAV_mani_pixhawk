@@ -49,6 +49,7 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/att_pos_mocap.h>
 
 __EXPORT int px4_simple_app_main(int argc, char *argv[]);
 
@@ -58,13 +59,17 @@ int px4_simple_app_main(int argc, char *argv[])
 
 	/* subscribe to sensor_combined topic */
 	int sensor_sub_fd = orb_subscribe(ORB_ID(sensor_combined));
+
 	/* limit the update rate to 5 Hz */
 	orb_set_interval(sensor_sub_fd, 200);
 
 	/* advertise attitude topic */
 	struct vehicle_attitude_s att;
+	struct att_pos_mocap_s mocap;
 	memset(&att, 0, sizeof(att));
+	memset(&mocap, 0, sizeof(mocap));
 	orb_advert_t att_pub = orb_advertise(ORB_ID(vehicle_attitude), &att);
+	orb_advert_t mocap_pub = orb_advertise(ORB_ID(att_pos_mocap), &mocap);
 
 	/* one could wait for multiple topics with this technique, just using one here */
 	px4_pollfd_struct_t fds[] = {
@@ -76,7 +81,7 @@ int px4_simple_app_main(int argc, char *argv[])
 
 	int error_counter = 0;
 
-	for (int i = 0; i < 5; i++) {
+	for (;;) {
 		/* wait for sensor update of 1 file descriptor for 1000 ms (1 second) */
 		int poll_ret = px4_poll(fds, 1, 1000);
 
@@ -114,6 +119,18 @@ int px4_simple_app_main(int argc, char *argv[])
 				att.q[2] = raw.accelerometer_m_s2[2];
 
 				orb_publish(ORB_ID(vehicle_attitude), att_pub, &att);
+
+
+				mocap.q[0] = att.q[0];
+				mocap.q[1] = att.q[1];
+				mocap.q[2] = att.q[2];
+				mocap.q[3] = att.q[0];
+
+				mocap.x = mocap.q[1] ;
+				mocap.y = mocap.q[2] ;
+				mocap.z = mocap.q[0] ;
+
+				orb_publish(ORB_ID(att_pos_mocap), mocap_pub, &mocap);
 			}
 
 			/* there could be more file descriptors here, in the form like:
