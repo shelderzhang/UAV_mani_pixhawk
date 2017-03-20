@@ -89,7 +89,17 @@ PARAM_DEFINE_FLOAT(AAE_PN_VEL, 0.05f);
  * @max 10
  * @decimal 3
  */
-PARAM_DEFINE_FLOAT(AAE_STD_ANGRAT, 0.01f);
+PARAM_DEFINE_FLOAT(AAE_STD_ANGRAT, 0.001f);
+
+/**
+ * angular acceleration standard deviation
+ *
+ * @group Angular acceleration and acceleration estimator
+ * @min 0.001
+ * @max 10
+ * @decimal 3
+ */
+PARAM_DEFINE_FLOAT(AAE_STD_ANGACC, 0.1f);
 
 /**
  * acceleration standard deviation

@@ -26,7 +26,8 @@
 #include <uORB/topics/angacc_acc.h>
 #include <uORB/topics/att_pos_mocap.h>
 
-// #define USING_ACCELEMETOR
+// #define USING_ACC
+//#define USING_ANGACC
 
 using namespace matrix;
 using namespace control;
@@ -57,10 +58,14 @@ class AngaccAccEKF : public control::SuperBlock {
     //
 public:
     enum {X_rx = 0, X_ry, X_rz, X_aax, X_aay, X_aaz, n_rx};
+#ifdef USING_ANGACC
+    enum {Y_rx = 0, Y_ry, Y_rz, Y_aax, Y_aay, Y_aaz, n_ry};
+#else
     enum {Y_rx = 0, Y_ry, Y_rz, n_ry};
+#endif
 
     enum {X_vx = 0, X_vy, X_vz, X_ax, X_ay, X_az, n_ax};
-#ifdef USING_ACCELEMETOR
+#ifdef USING_ACC
     enum {Y_vx = 0, Y_vy, Y_vz, Y_ax, Y_ay, Y_az, n_ay};
 #else
     enum {Y_vx = 0, Y_vy, Y_vz, n_ay};
@@ -93,6 +98,7 @@ private:
         param_t pn_acc;
         param_t pn_vel;
         param_t std_ang_rate;
+        param_t std_acc_rate;
         param_t std_acc;
         param_t std_vel;
     }   _params_handles;
@@ -103,6 +109,7 @@ private:
         float pn_acc;
         float pn_vel;
         float std_ang_rate;
+        float std_acc_rate;
         float std_acc;
         float std_vel;
     }   _params;
@@ -191,6 +198,7 @@ AngaccAccEKF::AngaccAccEKF() :
     _params_handles.pn_acc =        param_find("AAE_PN_ACC");
     _params_handles.pn_vel =        param_find("AAE_PN_VEL");
     _params_handles.std_ang_rate =  param_find("AAE_STD_ANGRAT");
+    _params_handles.std_acc_rate =	param_find("AAE_STD_ANGACC");
     _params_handles.std_acc =       param_find("AAE_STD_ACC");
     _params_handles.std_vel =       param_find("AAE_STD_VEL");
     
@@ -229,6 +237,7 @@ void AngaccAccEKF::parameters_update()
     param_get(_params_handles.pn_acc, &_params.pn_acc);
     param_get(_params_handles.pn_vel, &_params.pn_vel);
     param_get(_params_handles.std_ang_rate, &_params.std_ang_rate);
+    param_get(_params_handles.std_acc_rate, &_params.std_acc_rate);
     param_get(_params_handles.std_acc, &_params.std_acc);
     param_get(_params_handles.std_vel, &_params.std_vel);
 }
@@ -240,21 +249,15 @@ void AngaccAccEKF::initSS()
 
     _P_Ang.setZero();
     float p_ang_init = 1.0e-2f;
-    _P_Ang(X_rx, X_rx) = p_ang_init;
-    _P_Ang(X_ry, X_ry) = p_ang_init;
-    _P_Ang(X_rz, X_rz) = p_ang_init;
-    _P_Ang(X_aax, X_aax) = p_ang_init;
-    _P_Ang(X_aay, X_aay) = p_ang_init;
-    _P_Ang(X_aaz, X_aaz) = p_ang_init;
+    for (int i=0; i<n_rx; i++) {
+        _P_Ang(i, i) = p_ang_init;
+    }
 
     _P_Acc.setZero();
     float p_acc_init = 1.0e-2f;
-    _P_Acc(X_vx, X_vx) = p_acc_init;
-    _P_Acc(X_vy, X_vy) = p_acc_init;
-    _P_Acc(X_vz, X_vz) = p_acc_init;
-    _P_Acc(X_ax, X_ax) = p_acc_init;
-    _P_Acc(X_ay, X_ay) = p_acc_init;
-    _P_Acc(X_az, X_az) = p_acc_init;
+    for (int i=0; i<n_ax; i++) {
+        _P_Acc(i, i) = p_acc_init;
+    }
 
     _A_Ang.setIdentity();
     float a_ang_init = 4.0e-3f;
@@ -269,18 +272,14 @@ void AngaccAccEKF::initSS()
     _A_Acc(X_vz, X_az) = a_acc_init;
     
     _C_Ang.setZero();
-    _C_Ang(Y_rx, X_rx) = 1;
-    _C_Ang(Y_ry, X_ry) = 1;
-    _C_Ang(Y_rz, X_rz) = 1;
+    for (int i=0; i< n_ry; i++) {
+        _C_Ang(i, i) = 1;
+    }
 
-#ifdef USING_ACCELEMETOR
-    _C_Acc.setIdentity();
-#else
     _C_Acc.setZero();
-    _C_Acc(Y_vx, X_vx) = 1;
-    _C_Acc(Y_vy, X_vy) = 1;
-    _C_Acc(Y_vz, X_vz) = 1;
-#endif
+    for (int i=0; i< n_ay; i++) {
+        _C_Acc(i, i) = 1;
+    }
     updateSSParams();
 }
 
@@ -311,13 +310,19 @@ void AngaccAccEKF::updateSSParams()
     _R_Ang(Y_rx, Y_rx) = ang_rat_p_var;
 	_R_Ang(Y_ry, Y_ry) = ang_rat_p_var;
 	_R_Ang(Y_rz, Y_rz) = ang_rat_p_var;
+#ifdef USING_ANGACC
+	float ang_acc_p_var = _params.std_acc_rate * _params.std_acc_rate;
+    _R_Ang(Y_aax, Y_aax) = ang_acc_p_var;
+	_R_Ang(Y_aay, Y_aay) = ang_acc_p_var;
+	_R_Ang(Y_aaz, Y_aaz) = ang_acc_p_var;
+#endif
 
     _R_Acc.setZero();
     float vel_p_var = _params.std_vel * _params.std_vel;
     _R_Acc(Y_vx, Y_vx) = vel_p_var;
 	_R_Acc(Y_vy, Y_vy) = vel_p_var;
 	_R_Acc(Y_vz, Y_vz) = vel_p_var;
-#ifdef USING_ACCELEMETOR
+#ifdef USING_ACC
     float acc_p_var = _params.std_acc * _params.std_acc;
     _R_Acc(Y_ax, Y_ax) = acc_p_var;
 	_R_Acc(Y_ay, Y_ay) = acc_p_var;
@@ -459,10 +464,25 @@ void AngaccAccEKF::predict() {
 void AngaccAccEKF::correct() {
 
     Vector<float, n_ry> y_ang;
-    y_ang(Y_rx) = _ctrl_state.roll_rate;
-    y_ang(Y_ry) = _ctrl_state.pitch_rate;
-    y_ang(Y_rz) = _ctrl_state.yaw_rate;
-    Matrix<float, n_ry, n_ry> S_I_Ang = inv<float, 3>((_C_Ang * _P_Ang * _C_Ang.transpose()) + _R_Ang);
+    Vector3f rate(_ctrl_state.roll_rate, _ctrl_state.pitch_rate, _ctrl_state.yaw_rate);
+    y_ang(Y_rx) = rate(0);
+    y_ang(Y_ry) = rate(1);
+    y_ang(Y_rz) = rate(2);
+#ifdef USING_ANGACC
+    float h = _dt_ang;
+    static Vector3f pre_rate(0.0f, 0.0f, 0.0f);
+    static Vector3f pre_angacc(0.0f, 0.0f, 0.0f);
+    Vector3f angacc = pre_angacc * 0.2 +
+    		(rate - pre_rate) * 0.8/h;
+//    PX4_INFO("anacc: %8.4f,%8.4f,%8.4f", (double)angacc(0), (double)angacc(1), (double)angacc(2));
+    y_ang(Y_aax) = angacc(0);
+    y_ang(Y_aay) = angacc(1);
+    y_ang(Y_aaz) = angacc(2);
+    pre_rate = rate;
+    pre_angacc = angacc;
+
+#endif
+    Matrix<float, n_ry, n_ry> S_I_Ang = inv<float, n_ry>((_C_Ang * _P_Ang * _C_Ang.transpose()) + _R_Ang);
     Matrix<float, n_ry, 1> r_ang = y_ang - _C_Ang * _x_ang;
 
     Matrix<float,n_rx, n_ry> _K_Ang = _P_Ang * _C_Ang.transpose() * S_I_Ang;
@@ -477,8 +497,7 @@ void AngaccAccEKF::correct() {
         y_acc(Y_vy) = _local_pos.vy;
         y_acc(Y_vz) = _local_pos.vz;
 
-#ifdef USING_ACCELEMETOR
-
+#ifdef USING_ACC
         Quaternionf q(_ctrl_state.q[0], _ctrl_state.q[1],
     					_ctrl_state.q[2], _ctrl_state.q[3]);
         Dcmf R(q); //form body to word
