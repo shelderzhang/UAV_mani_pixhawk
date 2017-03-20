@@ -44,87 +44,87 @@
 /**
  * progress noise of angular acceleration
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
-PARAM_DEFINE_FLOAT(AAE_PN_ANGACC, 0.02f);
+PARAM_DEFINE_FLOAT(AAE_PN_ANGACC, 0.1f);
 
 /**
  * progress noise of angular rate
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
-PARAM_DEFINE_FLOAT(AAE_PN_ANGRATE, 0.02f);
+PARAM_DEFINE_FLOAT(AAE_PN_ANGRATE, 0.0008f);
 
 /**
  * progress noise of acceleration
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
 PARAM_DEFINE_FLOAT(AAE_PN_ACC, 0.02f);
 
 /**
  * progress noise of velocity
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
 PARAM_DEFINE_FLOAT(AAE_PN_VEL, 0.05f);
 
 /**
  * angular rate standard deviation
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
-PARAM_DEFINE_FLOAT(AAE_STD_ANGRAT, 0.001f);
+PARAM_DEFINE_FLOAT(AAE_STD_ANGRAT, 0.0005f);
 
 /**
  * angular acceleration standard deviation
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
 PARAM_DEFINE_FLOAT(AAE_STD_ANGACC, 0.1f);
 
 /**
  * acceleration standard deviation
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
 PARAM_DEFINE_FLOAT(AAE_STD_ACC, 0.01f);
 
 /**
  * velocity standard deviation
  *
- * @group Angular acceleration and acceleration estimator
- * @min 0.001
+ * @group Angular ACC Estimator
+ * @min 0.0001
  * @max 10
- * @decimal 3
+ * @decimal 4
  */
 PARAM_DEFINE_FLOAT(AAE_STD_VEL, 0.01f);
 
 /**
  * Cut frequency
  *
- * @group Angular acceleration and acceleration estimator
+ * @group Angular ACC Estimator
  * @min 5
  * @max 100
  * @decimal 0
@@ -134,7 +134,7 @@ PARAM_DEFINE_FLOAT(AAE_X_ANG_LP, 20.0f);
 /**
  * Cut frequency for state publication
  *
- * @group Angular acceleration and acceleration estimator
+ * @group Angular ACC Estimator
  * @min 5
  * @max 100
  * @decimal 0

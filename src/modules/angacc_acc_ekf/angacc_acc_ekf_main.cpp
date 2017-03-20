@@ -22,11 +22,12 @@
 #include <uORB/topics/control_state.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_local_position.h>
+#include <uORB/topics/sensor_gyro.h>
 // uORB Publications
 #include <uORB/topics/angacc_acc.h>
 #include <uORB/topics/att_pos_mocap.h>
 
-// #define USING_ACC
+//#define USING_ACC
 //#define USING_ANGACC
 
 using namespace matrix;
@@ -80,6 +81,7 @@ private:
     bool _task_should_exit;
     int _control_task;
 
+    int _sub_sensor_gyro;
     int _sub_ctrl_state;
     int _sub_param_update;
     int _sub_local_pos;
@@ -87,6 +89,7 @@ private:
     orb_advert_t _pub_angacc_acc;
     orb_advert_t _pub_fake_mocap;       //for monitoring angacc and acc estimator
 
+    struct sensor_gyro_s                _sensor_gyro;
     struct control_state_s              _ctrl_state;
     struct vehicle_local_position_s     _local_pos;
     struct angacc_acc_s                 _angacc_acc;
@@ -98,7 +101,7 @@ private:
         param_t pn_acc;
         param_t pn_vel;
         param_t std_ang_rate;
-        param_t std_acc_rate;
+        param_t std_ang_acc;
         param_t std_acc;
         param_t std_vel;
     }   _params_handles;
@@ -109,13 +112,10 @@ private:
         float pn_acc;
         float pn_vel;
         float std_ang_rate;
-        float std_acc_rate;
+        float std_ang_acc;
         float std_acc;
         float std_vel;
     }   _params;
-
-    BlockLowPassVector<float, 6> _x_angaccLowPass;
-    BlockLowPassVector<float, 6> _x_accLowPass;
 
     uint64_t _pre_ang_timeStamp;
     uint64_t _pre_acc_timeStamp;
@@ -141,7 +141,8 @@ private:
 	Matrix<float, n_ax, n_ax>  _Q_Acc; // process noise covariance
     Matrix<float, n_ay, n_ay>  _R_Acc; // measurement covariance
 
-
+    BlockLowPassVector<float, n_rx> _x_angaccLowPass;
+    BlockLowPassVector<float, n_ax> _x_accLowPass;
     /**
 	 * Update our local parameter cache.
 	 */
@@ -173,19 +174,21 @@ AngaccAccEKF::AngaccAccEKF() :
     SuperBlock(NULL,"AAE"),
     _task_should_exit(false),
     _control_task(-1),
+    _sub_sensor_gyro(-1),
     _sub_ctrl_state(-1),
     _sub_param_update(-1),
     _sub_local_pos(-1),
     _pub_angacc_acc(nullptr),
     _pub_fake_mocap(nullptr),
-	_x_angaccLowPass(this, "X_ANG_LP"),
-	_x_accLowPass(this, "X_ACC_LP"),
 	_pre_ang_timeStamp(hrt_absolute_time()),
     _pre_acc_timeStamp(hrt_absolute_time()),
     _dt_ang(0.0f),
     _dt_acc(0.0f),
-    _vel_updated(false)
+    _vel_updated(false),
+	_x_angaccLowPass(this, "X_ANG_LP"),
+	_x_accLowPass(this, "X_ACC_LP")
 {
+    memset(&_sensor_gyro, 0, sizeof(_sensor_gyro));
     memset(&_ctrl_state, 0, sizeof(_ctrl_state));
     memset(&_local_pos, 0, sizeof(_local_pos));
     memset(&_angacc_acc, 0, sizeof(_angacc_acc));
@@ -198,7 +201,7 @@ AngaccAccEKF::AngaccAccEKF() :
     _params_handles.pn_acc =        param_find("AAE_PN_ACC");
     _params_handles.pn_vel =        param_find("AAE_PN_VEL");
     _params_handles.std_ang_rate =  param_find("AAE_STD_ANGRAT");
-    _params_handles.std_acc_rate =	param_find("AAE_STD_ANGACC");
+    _params_handles.std_ang_acc =	param_find("AAE_STD_ANGACC");
     _params_handles.std_acc =       param_find("AAE_STD_ACC");
     _params_handles.std_vel =       param_find("AAE_STD_VEL");
     
@@ -237,7 +240,7 @@ void AngaccAccEKF::parameters_update()
     param_get(_params_handles.pn_acc, &_params.pn_acc);
     param_get(_params_handles.pn_vel, &_params.pn_vel);
     param_get(_params_handles.std_ang_rate, &_params.std_ang_rate);
-    param_get(_params_handles.std_acc_rate, &_params.std_acc_rate);
+    param_get(_params_handles.std_ang_acc, &_params.std_ang_acc);
     param_get(_params_handles.std_acc, &_params.std_acc);
     param_get(_params_handles.std_vel, &_params.std_vel);
 }
@@ -286,18 +289,18 @@ void AngaccAccEKF::initSS()
 void AngaccAccEKF::updateSSParams()
 {
     _Q_Ang.setZero();
-    float pn_ang_sq = _params.pn_ang_acc * _params.pn_ang_acc;
     float pn_rat_sq = _params.pn_ang_rate * _params.pn_ang_rate;
+    float pn_ang_sq = _params.pn_ang_acc * _params.pn_ang_acc;
     _Q_Ang(X_rx, X_rx) = pn_rat_sq;
     _Q_Ang(X_ry, X_ry) = pn_rat_sq;
     _Q_Ang(X_rz, X_rz) = pn_rat_sq;
-    _Q_Ang(X_aax, X_aaz) = pn_ang_sq;
-    _Q_Ang(X_aay, X_aaz) = pn_ang_sq;
+    _Q_Ang(X_aax, X_aax) = pn_ang_sq;
+    _Q_Ang(X_aay, X_aay) = pn_ang_sq;
     _Q_Ang(X_aaz, X_aaz) = pn_ang_sq;
 
     _Q_Acc.setZero();
-    float pn_acc_sq = _params.pn_acc * _params.pn_acc;
     float pn_vel_sq = _params.pn_vel * _params.pn_vel;
+    float pn_acc_sq = _params.pn_acc * _params.pn_acc;
     _Q_Acc(X_vx, X_vx) = pn_vel_sq;
     _Q_Acc(X_vy, X_vy) = pn_vel_sq;
     _Q_Acc(X_vz, X_vz) = pn_vel_sq;
@@ -311,7 +314,7 @@ void AngaccAccEKF::updateSSParams()
 	_R_Ang(Y_ry, Y_ry) = ang_rat_p_var;
 	_R_Ang(Y_rz, Y_rz) = ang_rat_p_var;
 #ifdef USING_ANGACC
-	float ang_acc_p_var = _params.std_acc_rate * _params.std_acc_rate;
+	float ang_acc_p_var = _params.std_ang_acc * _params.std_ang_acc;
     _R_Ang(Y_aax, Y_aax) = ang_acc_p_var;
 	_R_Ang(Y_aay, Y_aay) = ang_acc_p_var;
 	_R_Ang(Y_aaz, Y_aaz) = ang_acc_p_var;
@@ -338,6 +341,7 @@ AngaccAccEKF::task_main_trampoline(int argc, char *argv[])
 
 void AngaccAccEKF::task_main(){
     //do subscriptions
+    _sub_sensor_gyro = orb_subscribe(ORB_ID(sensor_gyro));
     _sub_ctrl_state = orb_subscribe(ORB_ID(control_state));
     _sub_param_update = orb_subscribe(ORB_ID(parameter_update));
     _sub_local_pos = orb_subscribe(ORB_ID(vehicle_local_position));
@@ -345,13 +349,14 @@ void AngaccAccEKF::task_main(){
 
     parameters_update();
 
+    
     px4_pollfd_struct_t fds[1];
-    fds[0].fd = _sub_ctrl_state;
+    fds[0].fd = _sub_sensor_gyro;
 	fds[0].events = POLLIN;
 
     while (!_task_should_exit) {
         int pret = px4_poll(&fds[0], (sizeof(fds) / sizeof(fds[0])), 80);
-
+        
         /* timed out - periodic check for _task_should_exit */
 		if (pret == 0) {
 			continue;
@@ -370,8 +375,14 @@ void AngaccAccEKF::task_main(){
             _dt_ang = (timeStamp - _pre_ang_timeStamp) / 1.0e6f;
             _pre_ang_timeStamp = timeStamp;
             
-            orb_copy(ORB_ID(control_state), _sub_ctrl_state, &_ctrl_state);
+            orb_copy(ORB_ID(sensor_gyro), _sub_sensor_gyro, &_sensor_gyro);
+
             bool updated;
+            orb_check(_sub_ctrl_state, &updated);
+            if(updated) {
+                orb_copy(ORB_ID(control_state), _sub_ctrl_state, &_ctrl_state);
+            }
+
             orb_check(_sub_param_update, &updated);
             if (updated) {
                 parameters_update();
@@ -392,14 +403,21 @@ void AngaccAccEKF::task_main(){
             correct();
 
             //publish
-            const Vector<float, 6> &x_angLP = _x_angaccLowPass.getState();
+            Vector<float, n_rx> x_angLP = _x_angaccLowPass.getState();
+            if(_x_angaccLowPass.getFCut() < 1.0e-6f) {
+                x_angLP = _x_ang;
+            }
+
             _fake_mocap.timestamp   = _angacc_acc.timestamp = timeStamp;
             _fake_mocap.q[0]        = _angacc_acc.ang_acc_x = x_angLP(X_aax);
             _fake_mocap.q[1]        = _angacc_acc.ang_acc_y = x_angLP(X_aay);
             _fake_mocap.q[2]        = _angacc_acc.ang_acc_z = x_angLP(X_aaz);
             _fake_mocap.q[3]        = _angacc_acc.valid_acc = _vel_updated;
 
-            const Vector<float, 6> &x_accLP = _x_accLowPass.getState();
+            Vector<float, n_ax> x_accLP = _x_accLowPass.getState();
+            if(_x_accLowPass.getFCut() < 1.0e-6f) {
+                x_accLP = _x_acc;
+            }
             if (_vel_updated) {
                  _fake_mocap.x = _angacc_acc.acc_x = x_accLP(X_ax);
                  _fake_mocap.y = _angacc_acc.acc_y = x_accLP(X_ay);
@@ -436,18 +454,20 @@ void AngaccAccEKF::predict() {
     _A_Ang(X_ry, X_aay) = h;
     _A_Ang(X_rz, X_aaz) = h;
 
-    PX4_INFO("time, %8.4f",(double) h);
+//     PX4_INFO("time, %8.4f",(double) h);
 
     _x_ang  = _A_Ang * _x_ang;
     // covPropagationLogic(_P);
     _P_Ang = _A_Ang * _P_Ang * _A_Ang.transpose() + _Q_Ang;
     
     setDt(h);       //must set time, otherwise lowpass not work
+
+//    PX4_INFO("ang_x:, %8.4f,%8.4f,%8.4f",(double)_x_ang(3),(double)_x_ang(4),(double)_x_ang(5));
     _x_angaccLowPass.update(_x_ang);
 
     if (_vel_updated) {
         h = _dt_acc;
-        PX4_INFO("time2, %8.4f",(double) h);
+        // PX4_INFO("time2, %8.4f",(double) h);
         _A_Acc.setIdentity();
         _A_Acc(X_vx, X_ax) = h;
         _A_Acc(X_vy, X_ay) = h;
@@ -456,7 +476,7 @@ void AngaccAccEKF::predict() {
         // covPropagationLogic(_P);
         _P_Acc = _A_Acc * _P_Acc * _A_Acc.transpose() + _Q_Acc;
         setDt(h);
-        PX4_INFO("_dt_acc is: %8.4f", (double)_dt_acc);
+        // PX4_INFO("_dt_acc is: %8.4f", (double)_dt_acc);
         _x_accLowPass.update(_x_acc);
     }
 }
@@ -464,7 +484,7 @@ void AngaccAccEKF::predict() {
 void AngaccAccEKF::correct() {
 
     Vector<float, n_ry> y_ang;
-    Vector3f rate(_ctrl_state.roll_rate, _ctrl_state.pitch_rate, _ctrl_state.yaw_rate);
+    Vector3f rate(_sensor_gyro.x, _sensor_gyro.y, _sensor_gyro.z);
     y_ang(Y_rx) = rate(0);
     y_ang(Y_ry) = rate(1);
     y_ang(Y_rz) = rate(2);
@@ -472,15 +492,17 @@ void AngaccAccEKF::correct() {
     float h = _dt_ang;
     static Vector3f pre_rate(0.0f, 0.0f, 0.0f);
     static Vector3f pre_angacc(0.0f, 0.0f, 0.0f);
-    Vector3f angacc = pre_angacc * 0.2 +
-    		(rate - pre_rate) * 0.8/h;
-//    PX4_INFO("anacc: %8.4f,%8.4f,%8.4f", (double)angacc(0), (double)angacc(1), (double)angacc(2));
+    Vector3f angacc = pre_angacc * 0.1 + (rate - pre_rate) * 0.9/h;
+    
+    // PX4_INFO("anacc: %8.4f,%8.4f,%8.4f", (double)angacc(0), (double)angacc(1), (double)angacc(2));
     y_ang(Y_aax) = angacc(0);
     y_ang(Y_aay) = angacc(1);
     y_ang(Y_aaz) = angacc(2);
     pre_rate = rate;
     pre_angacc = angacc;
 
+//    PX4_INFO("y_ang: %8.4f,%8.4f,%8.4f,%8.4f,%8.4f,%8.4f", (double)y_ang(Y_rx),(double)y_ang(Y_ry),(double)y_ang(Y_rz),
+//    		(double)y_ang(Y_aax),(double)y_ang(Y_aay),(double)y_ang(Y_aaz));
 #endif
     Matrix<float, n_ry, n_ry> S_I_Ang = inv<float, n_ry>((_C_Ang * _P_Ang * _C_Ang.transpose()) + _R_Ang);
     Matrix<float, n_ry, 1> r_ang = y_ang - _C_Ang * _x_ang;
@@ -490,6 +512,10 @@ void AngaccAccEKF::correct() {
 
     _x_ang += _K_Ang * r_ang;
     _P_Ang -= _K_Ang * _C_Ang * _P_Ang;
+
+//     _x_ang(3) = angacc(0);
+//     _x_ang(4) = angacc(1);
+//     _x_ang(5) = angacc(2);
 
     if (_vel_updated) {
         Vector<float, n_ay> y_acc;
