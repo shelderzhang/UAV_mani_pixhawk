@@ -111,7 +111,7 @@ extern "C" __EXPORT int mc_att_control_main(int argc, char *argv[]);
 #define AXIS_INDEX_YAW 2
 #define AXIS_COUNT 3
 
-#define ANGACC_FF
+// #define ANGACC_FF
 
 class MulticopterAttitudeControl
 {

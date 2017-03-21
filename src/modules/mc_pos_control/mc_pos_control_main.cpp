@@ -94,12 +94,12 @@
 #define MANUAL_THROTTLE_MAX_MULTICOPTER	0.9f
 #define ONE_G	9.8066f
 
-// #define HOVERING_MODE
+#define HOVERING_MODE
 #ifdef HOVERING_MODE
-	static math::Vector<3> hovering_point(1.0f, 0.0f, -1.5f);
+	static math::Vector<3> hovering_point(2.0f, 0.0f, -1.5f);
 #endif
 
-#define ACC_FF
+// #define ACC_FF
 
 /**
  * Multicopter position control app start / stop handling function
@@ -994,13 +994,8 @@ MulticopterPositionControl::control_manual(float dt)
 				if (_params.hold_max_xy < FLT_EPSILON || vel_xy_mag < _params.hold_max_xy) {
 					/* reset position setpoint to have smooth transition from velocity control to position control */
 					_pos_hold_engaged = true;
-#ifdef HOVERING_MODE
-					_pos_sp(0) = hovering_point(0);
-					_pos_sp(1) = hovering_point(1);					
-#else
 					_pos_sp(0) = _pos(0);
 					_pos_sp(1) = _pos(1);
-#endif
 
 				} else {
 					_pos_hold_engaged = false;
@@ -1029,11 +1024,7 @@ MulticopterPositionControl::control_manual(float dt)
 				if (_params.hold_max_z < FLT_EPSILON || fabsf(_vel(2)) < _params.hold_max_z) {
 					/* reset position setpoint to have smooth transition from velocity control to position control */
 					_alt_hold_engaged = true;
-#ifdef HOVERING_MODE
-					_pos_sp(2) = hovering_point(2);
-#else
 					_pos_sp(2) = _pos(2);
-#endif
 
 				} else {
 					_alt_hold_engaged = false;
@@ -1051,6 +1042,12 @@ MulticopterPositionControl::control_manual(float dt)
 			_vel_sp(2) = req_vel_sp_scaled(2);
 		}
 	}
+
+#ifdef HOVERING_MODE
+	if (_control_mode.flag_control_position_enabled && _control_mode.flag_control_altitude_enabled) {
+		_pos_sp = hovering_point;
+	}
+#endif
 }
 
 void
