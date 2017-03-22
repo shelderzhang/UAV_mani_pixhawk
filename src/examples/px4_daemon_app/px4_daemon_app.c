@@ -50,7 +50,7 @@
 #include <systemlib/err.h>
 
 #include <uORB/uORB.h>
-#include <uORB/topics/att_pos_mocap.h>
+#include <uORB/topics/angacc_acc.h>
 
 static bool thread_should_exit = false;		/**< daemon exit flag */
 static bool thread_running = false;		/**< daemon status flag */
@@ -140,28 +140,21 @@ int px4_daemon_thread_main(int argc, char *argv[])
 	warnx("[daemon] starting\n");
 
 	thread_running = true;
-	int 	_mocap_sub = orb_subscribe(ORB_ID(att_pos_mocap));
+	int 	_angacc_acc_sub = orb_subscribe(ORB_ID(angacc_acc));
 	while (!thread_should_exit) {
 		
-		struct att_pos_mocap_s	_mocap ;
+		struct angacc_acc_s	_angacc_acc ;
 
 		bool updated = false;
-		orb_check(_mocap_sub, &updated);
+		orb_check(_angacc_acc_sub, &updated);
 
 		if (updated) {
-			orb_copy(ORB_ID(att_pos_mocap), _mocap_sub, &_mocap);
+			orb_copy(ORB_ID(angacc_acc), _angacc_acc_sub, &_angacc_acc);
 
-			warnx("MOCAP is : %8.4f,%8.4f,%8.4f,%8.4f,%8.4f,%8.4f,%8.4f\n",\
-				 (double)_mocap.q[0], 
-				 (double)_mocap.q[1],
-				 (double)_mocap.q[2],
-				 (double)_mocap.q[3],
-				 (double) _mocap.x,
-				 (double) _mocap.y,
-				 (double) _mocap.z);
+			warnx("angacc_acc is: %d", _angacc_acc.valid_acc);
 		}
 
-		usleep(100000);
+		usleep(1000);
 	}
 
 	warnx("[daemon] exiting.\n");

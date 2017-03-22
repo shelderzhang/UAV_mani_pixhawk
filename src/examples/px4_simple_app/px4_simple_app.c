@@ -51,6 +51,7 @@
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/att_pos_mocap.h>
 
+
 __EXPORT int px4_simple_app_main(int argc, char *argv[]);
 
 int px4_simple_app_main(int argc, char *argv[])
