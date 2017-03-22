@@ -21,7 +21,7 @@
 // uORB Suscriptions
 #include <uORB/topics/control_state.h>
 #include <uORB/topics/parameter_update.h>
-#include <uORB/topics/vehicle_local_position.h>
+#include <uORB/topics/att_pos_vel_mocap.h>
 #include <uORB/topics/sensor_gyro.h>
 // uORB Publications
 #include <uORB/topics/angacc_acc.h>
@@ -84,14 +84,14 @@ private:
     int _sub_sensor_gyro;
     int _sub_ctrl_state;
     int _sub_param_update;
-    int _sub_local_pos;
+    int _sub_vel_mocap;
 
     orb_advert_t _pub_angacc_acc;
     orb_advert_t _pub_fake_mocap;       //for monitoring angacc and acc estimator
 
     struct sensor_gyro_s                _sensor_gyro;
     struct control_state_s              _ctrl_state;
-    struct vehicle_local_position_s     _local_pos;
+    struct att_pos_vel_mocap_s     _vel_mocap;
     struct angacc_acc_s                 _angacc_acc;
     struct att_pos_mocap_s              _fake_mocap;
 
@@ -177,7 +177,7 @@ AngaccAccEKF::AngaccAccEKF() :
     _sub_sensor_gyro(-1),
     _sub_ctrl_state(-1),
     _sub_param_update(-1),
-    _sub_local_pos(-1),
+    _sub_vel_mocap(-1),
     _pub_angacc_acc(nullptr),
     _pub_fake_mocap(nullptr),
 	_pre_ang_timeStamp(hrt_absolute_time()),
@@ -190,7 +190,7 @@ AngaccAccEKF::AngaccAccEKF() :
 {
     memset(&_sensor_gyro, 0, sizeof(_sensor_gyro));
     memset(&_ctrl_state, 0, sizeof(_ctrl_state));
-    memset(&_local_pos, 0, sizeof(_local_pos));
+    memset(&_vel_mocap, 0, sizeof(_vel_mocap));
     memset(&_angacc_acc, 0, sizeof(_angacc_acc));
     memset(&_fake_mocap, 0, sizeof(_fake_mocap));
 
@@ -344,7 +344,7 @@ void AngaccAccEKF::task_main(){
     _sub_sensor_gyro = orb_subscribe(ORB_ID(sensor_gyro));
     _sub_ctrl_state = orb_subscribe(ORB_ID(control_state));
     _sub_param_update = orb_subscribe(ORB_ID(parameter_update));
-    _sub_local_pos = orb_subscribe(ORB_ID(vehicle_local_position));
+    _sub_vel_mocap = orb_subscribe(ORB_ID(att_pos_vel_mocap));
     initSS();
 
     parameters_update();
@@ -389,14 +389,14 @@ void AngaccAccEKF::task_main(){
 		        updateSSParams();
             }
 
-            orb_check(_sub_local_pos, &updated);
+            orb_check(_sub_vel_mocap, &updated);
 
             _vel_updated = updated;
             if (updated) {
                 _dt_acc = (timeStamp - _pre_acc_timeStamp) / 1.0e6f;
                 _pre_acc_timeStamp = timeStamp;
-                orb_copy(ORB_ID(vehicle_local_position), _sub_local_pos, &_local_pos);
-                // PX4_INFO("local: %8.4f,%8.4f,%8.4f",(double)_local_pos.vx,(double)_local_pos.vy,(double)_local_pos.vz);
+                orb_copy(ORB_ID(att_pos_vel_mocap), _sub_vel_mocap, &_vel_mocap);
+                // PX4_INFO("local: %8.4f,%8.4f,%8.4f",(double)_vel_mocap.vx,(double)_vel_mocap.vy,(double)_vel_mocap.vz);
             }
 
             predict();
@@ -414,6 +414,8 @@ void AngaccAccEKF::task_main(){
             _fake_mocap.q[2]        = _angacc_acc.ang_acc_z = x_angLP(X_aaz);
             _fake_mocap.q[3]        = _angacc_acc.valid_acc = _vel_updated;
 
+//            PX4_INFO("_dt_ang %8.4f, _dt_acc %8.4f", (double)_dt_ang,(double)_dt_acc);
+//            PX4_INFO("_vel_updated:%d", _vel_updated);
             Vector<float, n_ax> x_accLP = _x_accLowPass.getState();
             if(_x_accLowPass.getFCut() < 1.0e-6f) {
                 x_accLP = _x_acc;
@@ -422,6 +424,7 @@ void AngaccAccEKF::task_main(){
                  _fake_mocap.x = _angacc_acc.acc_x = x_accLP(X_ax);
                  _fake_mocap.y = _angacc_acc.acc_y = x_accLP(X_ay);
                  _fake_mocap.z = _angacc_acc.acc_z = x_accLP(X_az);
+//                 PX4_INFO("_dt_acc %8.4f", (double)_dt_acc);
             }
             
 
@@ -436,7 +439,7 @@ void AngaccAccEKF::task_main(){
             } else {
                 orb_publish(ORB_ID(att_pos_mocap), _pub_fake_mocap, &_fake_mocap);
             }
-            // PX4_INFO("angacc: %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f", 
+            // PX4_INFO("angacc: %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f",
             //         (double)_angacc_acc.ang_acc_x,
             //         (double)_angacc_acc.ang_acc_y,
             //         (double)_angacc_acc.ang_acc_z,
@@ -519,9 +522,9 @@ void AngaccAccEKF::correct() {
 
     if (_vel_updated) {
         Vector<float, n_ay> y_acc;
-        y_acc(Y_vx) = _local_pos.vx;
-        y_acc(Y_vy) = _local_pos.vy;
-        y_acc(Y_vz) = _local_pos.vz;
+        y_acc(Y_vx) = _vel_mocap.vx;
+        y_acc(Y_vy) = _vel_mocap.vy;
+        y_acc(Y_vz) = _vel_mocap.vz;
 
 #ifdef USING_ACC
         Quaternionf q(_ctrl_state.q[0], _ctrl_state.q[1],

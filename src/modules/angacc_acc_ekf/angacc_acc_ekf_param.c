@@ -69,7 +69,7 @@ PARAM_DEFINE_FLOAT(AAE_PN_ANGRATE, 0.0008f);
  * @max 10
  * @decimal 4
  */
-PARAM_DEFINE_FLOAT(AAE_PN_ACC, 0.02f);
+PARAM_DEFINE_FLOAT(AAE_PN_ACC, 0.177f);
 
 /**
  * progress noise of velocity
@@ -79,7 +79,7 @@ PARAM_DEFINE_FLOAT(AAE_PN_ACC, 0.02f);
  * @max 10
  * @decimal 4
  */
-PARAM_DEFINE_FLOAT(AAE_PN_VEL, 0.05f);
+PARAM_DEFINE_FLOAT(AAE_PN_VEL, 0.0014f);
 
 /**
  * angular rate standard deviation
@@ -119,7 +119,7 @@ PARAM_DEFINE_FLOAT(AAE_STD_ACC, 0.01f);
  * @max 10
  * @decimal 4
  */
-PARAM_DEFINE_FLOAT(AAE_STD_VEL, 0.01f);
+PARAM_DEFINE_FLOAT(AAE_STD_VEL, 0.0012f);
 
 /**
  * Cut frequency
