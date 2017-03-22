@@ -540,3 +540,33 @@ PARAM_DEFINE_FLOAT(MPC_FF_ACC, 5.0f);
  * @group Multicopter Position Control
  */
 PARAM_DEFINE_FLOAT(MPC_MASS, 0.85f);
+
+/**
+* hovering thrust real value
+*
+* @min 0.4
+* @max 0.8
+* @decimal 2
+* @group Multicopter Position Control
+*/
+PARAM_DEFINE_FLOAT(MPC_HOVER_THR, 0.41f);
+
+/**
+* Max feed-forward in horizon direction
+*
+* @min 0.0
+* @max 0.3
+* @decimal 2
+* @group Multicopter Position Control
+*/
+PARAM_DEFINE_FLOAT(MPC_FF_MAX_H, 0.2f);
+
+/**
+* Max feed-forward in vertical direction
+*
+* @min 0.0
+* @max 0.3
+* @decimal 2
+* @group Multicopter Position Control
+*/
+PARAM_DEFINE_FLOAT(MPC_FF_MAX_V, 0.1f);

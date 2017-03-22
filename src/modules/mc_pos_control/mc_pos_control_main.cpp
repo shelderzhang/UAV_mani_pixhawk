@@ -77,7 +77,7 @@
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/angacc_acc.h>
-#include <uORB/topics/angacc_acc_ff.h>
+#include <uORB/topics/acc_ff.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/mavlink_log.h>
@@ -96,10 +96,10 @@
 
 #define HOVERING_MODE
 #ifdef HOVERING_MODE
-	static math::Vector<3> hovering_point(2.0f, 0.0f, -1.5f);
+	static math::Vector<3> hovering_point(0.0f, 0.0f, -1.5f);
 #endif
 
-// #define ACC_FF
+#define ACC_FF
 
 /**
  * Multicopter position control app start / stop handling function
@@ -150,11 +150,10 @@ private:
 	int		_global_vel_sp_sub;		/**< offboard global velocity setpoint */
 
 	int		_angacc_acc_sub;		/* angular acceleration and acceleration*/
-
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
-	orb_advert_t	_angacc_acc_ff_pub;		// angular acceleration and acceleration feedforwad --bdai
+	orb_advert_t	_acc_ff_pub;		// angular acceleration and acceleration feedforwad --bdai
 
 	orb_id_t _attitude_setpoint_id;
 
@@ -170,12 +169,15 @@ private:
 	struct vehicle_local_position_setpoint_s	_local_pos_sp;		/**< vehicle local position setpoint */
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
 	struct angacc_acc_s			_angacc_acc;
-	struct angacc_acc_ff_s				_angacc_acc_ff;
+	struct acc_ff_s				_acc_ff;
 
 	control::BlockParamFloat _manual_thr_min;
 	control::BlockParamFloat _manual_thr_max;
 	control::BlockParamFloat _acc_ff_a;
 	control::BlockParamFloat _mass;
+	control::BlockParamFloat _hovering_thr;
+	control::BlockParamFloat _ff_max_horizon;
+	control::BlockParamFloat _ff_max_vertical;
 
 	control::BlockDerivative _vel_x_deriv;
 	control::BlockDerivative _vel_y_deriv;
@@ -285,6 +287,9 @@ private:
 	math::Vector<3> _vel_ff;
 	math::Vector<3> _vel_sp_prev;
 	math::Vector<3> _vel_err_d;		/**< derivative of current velocity */
+
+	math::Vector<3> _pre_thrust_sp;
+	math::Vector<3> _pre_pid_thrust_sp;
 
 	math::Matrix<3, 3> _R;			/**< rotation matrix from attitude quaternions */
 	float _yaw;				/**< yaw angle (euler) */
@@ -411,7 +416,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
 	_global_vel_sp_pub(nullptr),
-	_angacc_acc_ff_pub(nullptr),
+	_acc_ff_pub(nullptr),
 	_attitude_setpoint_id(0),
 	_vehicle_status{},
 	_vehicle_land_detected{},
@@ -425,11 +430,14 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_local_pos_sp{},
 	_global_vel_sp{},
 	_angacc_acc{},
-	_angacc_acc_ff{},
+	_acc_ff{},
 	_manual_thr_min(this, "MANTHR_MIN"),
 	_manual_thr_max(this, "MANTHR_MAX"),
 	_acc_ff_a(this, "FF_ACC"),
 	_mass(this, "MASS"),
+	_hovering_thr(this, "HOVER_THR"),
+	_ff_max_horizon(this,"FF_MAX_H"),
+	_ff_max_vertical(this,"FF_MAX_V"),
 	_vel_x_deriv(this, "VELD"),
 	_vel_y_deriv(this, "VELD"),
 	_vel_z_deriv(this, "VELD"),
@@ -487,6 +495,8 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_vel_ff.zero();
 	_vel_sp_prev.zero();
 	_vel_err_d.zero();
+	_pre_thrust_sp.zero();
+	_pre_pid_thrust_sp.zero();
 
 	_R.identity();
 
@@ -812,6 +822,7 @@ MulticopterPositionControl::poll_subscriptions()
 	if (updated) {
 		orb_copy(ORB_ID(angacc_acc), _angacc_acc_sub, &_angacc_acc);
 		_angacc_acc_updated = true;
+//		PX4_INFO("_angacc_acc: %d", _angacc_acc.valid_acc);
 	} else {
 		_angacc_acc_updated = false;
 	}
@@ -1388,7 +1399,7 @@ MulticopterPositionControl::task_main()
 	_pos_sp_triplet_sub = orb_subscribe(ORB_ID(position_setpoint_triplet));
 	_local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
 	_global_vel_sp_sub = orb_subscribe(ORB_ID(vehicle_global_velocity_setpoint));
-
+	_angacc_acc_sub = orb_subscribe(ORB_ID(angacc_acc));
 
 	parameters_update(true);
 
@@ -1877,40 +1888,8 @@ MulticopterPositionControl::task_main()
 					} else {
 						thrust_sp = vel_err.emult(_params.vel_p) + _vel_err_d.emult(_params.vel_d) + thrust_int;
 					}
-
-#ifdef ACC_FF		
-					static bool acc_ff_flag = false;
-					static math::Vector<3> pre_thrust_sp = thrust_sp;
-					static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
-
-					hrt_abstime timeNow = hrt_absolute_time();
-					static hrt_abstime pretimeStamp = timeNow;
-					float dt_acc_ff = (timeNow - pretimeStamp) * 1e-6f;
-					pretimeStamp = timeNow;
-
-					if (_manual.aux2 > 0.6f) {
-						if (acc_ff_flag == false) {	// first time in acc feed back mode
-							ff_value.zero();
-							if (_angacc_acc_updated && _angacc_acc.valid_acc) {
-								acc_ff_flag = true;
-								math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z);
-								ff_value +=  (thrust_sp - acc * _mass.get()) * (_acc_ff_a.get() * dt_acc_ff);
-							}
-						}
-					} else {
-						acc_ff_flag = false;
-						ff_value.zero();
-					}
-					thrust_sp += ff_value;
-
-							
-					if (_angacc_acc_ff_pub == nullptr) {
-						_angacc_acc_ff_pub = orb_advertise(ORB_ID(angacc_acc_ff), &_angacc_acc_ff);
-					} else {
-						orb_publish(ORB_ID(angacc_acc_ff), _angacc_acc_ff_pub, &_angacc_acc_ff);
-					}
-#endif
-
+					
+		
 					if (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF
 					    && !_takeoff_jumped && !_control_mode.flag_control_manual_enabled) {
 						// for jumped takeoffs use special thrust setpoint calculated above
@@ -1927,7 +1906,7 @@ MulticopterPositionControl::task_main()
 						thrust_sp(2) = 0.0f;
 					}
 
-					/* limit thrust vector and check for saturation */
+
 					bool saturation_xy = false;
 					bool saturation_z = false;
 
@@ -2089,9 +2068,154 @@ MulticopterPositionControl::task_main()
 							thrust_int(2) = 0.0f;
 						}
 					}
+					_pre_thrust_sp = _pre_pid_thrust_sp;
+					_pre_pid_thrust_sp = thrust_sp;
 
 #ifdef ACC_FF
-					pre_thrust_sp = thrust_sp;
+					static bool acc_ff_flag = false;
+					static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
+					bool ff_saturation_xy = false;
+					bool ff_saturation_z = false;
+					if (_manual.aux1 > 0.6f) {
+
+						hrt_abstime timeNow = hrt_absolute_time();
+						static hrt_abstime pretimeStamp = timeNow;
+						if (acc_ff_flag == false) {	// first time in acc feed back mode
+							ff_value.zero();
+							pretimeStamp = timeNow;
+						}
+//						PX4_INFO("pos: %d, %d",_angacc_acc_updated,_angacc_acc.valid_acc);
+						if (_angacc_acc_updated && _angacc_acc.valid_acc) {
+							math::Vector<3> thrust_sp_temp(0.0f, 0.0f, 0.0f);
+							float dt_acc_ff = (timeNow - pretimeStamp) * 1e-6f;
+
+//							PX4_INFO("dt_acc_ff: %8.4f",(double)dt_acc_ff);
+
+							pretimeStamp = timeNow;
+							acc_ff_flag = true;
+							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
+							mavlink_log_info(&_mavlink_log_pub, "acc: %8.4f,%8.4f,%8.4f",
+									(double)acc(0),(double)acc(1),(double)acc(2));
+
+							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(_hovering_thr.get() / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
+
+//							PX4_INFO("_pre_thrust_sp:%8.4f, %8.4f, %8.4f",(double)_pre_thrust_sp(0),
+//									(double)_pre_thrust_sp(1),(double)_pre_thrust_sp(2));
+
+							math::Vector<3> ff_value_temp = ff_value + ff_delta;
+							float ff_value_temp_norm = sqrtf(ff_value_temp(0) * ff_value_temp(0) + ff_value_temp(1) * ff_value_temp(1));
+							if ( ff_value_temp_norm > _ff_max_horizon.get()) {
+								ff_value_temp(0) = ff_value_temp(0) / ff_value_temp_norm * _ff_max_horizon.get();
+								ff_value_temp(1) = ff_value_temp(1) / ff_value_temp_norm * _ff_max_horizon.get();
+								ff_saturation_xy = true;
+							}
+							if (fabsf(ff_value_temp(2)) > _ff_max_vertical.get()) {
+								ff_value_temp(2) = _ff_max_vertical.get();
+								ff_saturation_z = true;
+							}
+							ff_value = ff_value_temp;
+							PX4_INFO("ff_acc: %8.4f,%8.4f,%8.4f", (double)ff_value(0), (double)ff_value(1),(double)ff_value(2));
+
+							thrust_sp_temp = thrust_sp + ff_value;
+
+							/* limit min lift */
+							if (-thrust_sp_temp(2) < thr_min) {
+								thrust_sp_temp(2) = -thr_min;
+								saturation_z = true;
+							}
+
+							if (_control_mode.flag_control_velocity_enabled || _control_mode.flag_control_acceleration_enabled) {
+
+								/* limit max tilt */
+								if (thr_min >= 0.0f && tilt_max < M_PI_F / 2 - 0.05f) {
+									/* absolute horizontal thrust */
+									float thrust_temp_xy_len = math::Vector<2>(thrust_sp_temp(0), thrust_sp_temp(1)).length();
+
+									if (thrust_temp_xy_len > 0.01f) {
+										/* max horizontal thrust for given vertical thrust*/
+										float thrust_xy_max = -thrust_sp_temp(2) * tanf(tilt_max);
+
+										if (thrust_temp_xy_len > thrust_xy_max) {
+											float k = thrust_xy_max / thrust_temp_xy_len;
+											thrust_sp_temp(0) *= k;
+											thrust_sp_temp(1) *= k;
+											saturation_xy = true;
+										}
+									}
+								}
+							}
+
+//							if (_control_mode.flag_control_climb_rate_enabled && !_control_mode.flag_control_velocity_enabled) {
+//								/* thrust compensation when vertical velocity but not horizontal velocity is controlled */
+//								float att_comp;
+//
+//								if (_R(2, 2) > TILT_COS_MAX) {
+//									att_comp = 1.0f / _R(2, 2);
+//
+//								} else if (_R(2, 2) > 0.0f) {
+//									att_comp = ((1.0f / TILT_COS_MAX - 1.0f) / TILT_COS_MAX) * _R(2, 2) + 1.0f;
+//									tatal_saturation_z = true;
+//
+//								} else {
+//									att_comp = 1.0f;
+//									tatal_saturation_z = true;
+//								}
+//
+//								thrust_sp_temp(2) *= att_comp;
+//							}
+
+							/* limit max thrust */
+							float thrust_sp_temp_abs = thrust_sp_temp.length(); /* recalculate because it might have changed */
+
+							if (thrust_sp_temp_abs > thr_max) {
+								if (thrust_sp_temp(2) < 0.0f) {
+									if (-thrust_sp_temp(2) > thr_max) {
+										/* thrust Z component is too large, limit it */
+										thrust_sp_temp(0) = 0.0f;
+										thrust_sp_temp(1) = 0.0f;
+										thrust_sp_temp(2) = -thr_max;
+										saturation_xy = true;
+										saturation_z = true;
+
+									} else {
+										/* preserve thrust Z component and lower XY, keeping altitude is more important than position */
+										float thrust_xy_max = sqrtf(thr_max * thr_max - thrust_sp_temp(2) * thrust_sp_temp(2));
+										float thrust_xy_abs = math::Vector<2>(thrust_sp_temp(0), thrust_sp_temp(1)).length();
+										float k = thrust_xy_max / thrust_xy_abs;
+										thrust_sp_temp(0) *= k;
+										thrust_sp_temp(1) *= k;
+										saturation_xy = true;
+									}
+
+								} else {
+									/* Z component is negative, going down, simply limit thrust vector */
+									float k = thr_max / thrust_sp_temp_abs;
+									thrust_sp_temp *= k;
+									saturation_xy = true;
+									saturation_z = true;
+								}
+
+								thrust_sp_temp_abs = thr_max;
+							}
+						}
+					} else {
+						acc_ff_flag = false;
+						ff_value.zero();
+					}
+
+//					thrust_sp = thrust_sp_temp;
+
+					_acc_ff.acc_ff[0] = ff_value(0);
+					_acc_ff.acc_ff[1] = ff_value(1);
+					_acc_ff.acc_ff[2] = ff_value(2);
+
+					_acc_ff.saturation = ff_saturation_xy | (ff_saturation_z << 1);
+
+					if (_acc_ff_pub == nullptr) {
+						_acc_ff_pub = orb_advertise(ORB_ID(acc_ff), &_acc_ff);
+					} else {
+						orb_publish(ORB_ID(acc_ff), _acc_ff_pub, &_acc_ff);
+					}
 #endif
 
 					/* calculate attitude setpoint from thrust vector */

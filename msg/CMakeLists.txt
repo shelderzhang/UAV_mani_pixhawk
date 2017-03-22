@@ -127,7 +127,8 @@ set(msg_file_names
 	collision_report.msg
 
 	angacc_acc.msg
-	angacc_acc_ff.msg
+	angacc_ff.msg
+	acc_ff.msg
 	)
 
 # Get absolute paths

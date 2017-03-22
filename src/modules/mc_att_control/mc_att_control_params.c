@@ -427,7 +427,7 @@ PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
  * @decimal 2
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_FF_ANGACC, 5.0f);
+PARAM_DEFINE_FLOAT(MC_FFT_ANGACC, 5.0f);
 
 /**
  * Inertial tensor in X direction
@@ -458,3 +458,34 @@ PARAM_DEFINE_FLOAT(MC_INERTIAL_Y, 0.014f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_INERTIAL_Z, 0.026f);
+
+/**
+ * Maximum feedforward value in horizon
+ *
+ * @min 0.0
+ * @max 0.3
+ * @decimal 2
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_FFT_MAX_H, 0.1f);
+
+/**
+ * Maximum feedforward value in vertical
+ *
+ * @min 0.0
+ * @max 0.3
+ * @decimal 2
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_FFT_MAX_V, 0.1f);
+
+
+/**
+ * Inertial gain
+ *
+ * @min 0.0
+ * @max 1
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_FFT_GAIN, 0.1f);

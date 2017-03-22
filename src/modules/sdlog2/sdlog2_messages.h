@@ -648,13 +648,17 @@ struct log_AAA_s {
 /* --- Angular Acceleration and Acceleration --- */
 #define LOG_AAF_MSG 64
 struct log_AAF_s {
-	float angacc_ff_x;
-	float angacc_ff_y;
-	float angacc_ff_z;
-	float acc_ff_x;
-	float acc_ff_y;
-	float acc_ff_z;
+	float angacc_ff[3];
+	uint8_t saturation;
 };
+
+/* --- Angular Acceleration and Acceleration --- */
+#define LOG_ACCF_MSG 64
+struct log_ACCF_s {
+	float acc_ff[3];
+	uint8_t saturation;
+};
+
 /* --- motion capture with velocity --- */
 #define LOG_MOCV_MSG 80
 struct log_MOCV_s {
@@ -760,7 +764,8 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(LOAD, "f", "CPU"),
 	LOG_FORMAT(DPRS, "Qffff", "errors,DPRESraw,DPRES,DPRESmax,Temp"),
 	LOG_FORMAT(AAA,  "ffffff", "AAx,AAy,AAz,Ax,Ay,Az"),
-	LOG_FORMAT(AAF,  "ffffff", "AAFx,AAFy,AAFz,AFx,AFy,AFz"),
+	LOG_FORMAT(AAF,  "fffB", "AAFx,AAFy,AAFz,angSat"),
+	LOG_FORMAT(ACCF, "fffB", "AFx,AFy,AFz,accSat"),
 	LOG_FORMAT(MOCV, "ffffffffff", "QuatW,QuatX,QuatY,QuatZ,X,Y,Z,Vx,Vy,Vz"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
