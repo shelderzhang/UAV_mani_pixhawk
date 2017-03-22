@@ -120,6 +120,8 @@
 #include <uORB/topics/endeff_frame_status.h>
 #include <uORB/topics/target_endeff_frame.h>
 #include <uORB/topics/manipulator_joint_status.h>
+/* store manipulator -gyzhang<21 MAR 2017>*/
+#include <uORB/topics/coupling_force.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1240,6 +1242,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct target_endeff_frame_s target_endeff_frame;
 		struct endeff_frame_status_s endeff_frame_status;
 		struct manipulator_joint_status_s manipulator_joint_status;
+		struct coupling_force_s coup_force;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1311,6 +1314,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_EFFR_s log_EFFR;
 			struct log_EFFS_s log_EFFS;
 			struct log_MANJ_s log_MANJ;
+			struct log_CFOR_s log_CFOR;
 
 		} body;
 	} log_msg = {
@@ -1369,6 +1373,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int target_endeff_frame_sub;
 		int endeff_frame_status_sub;
 		int manipulator_joint_status_sub;
+		int coup_force_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1420,7 +1425,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.target_endeff_frame_sub = -1;
 	subs.endeff_frame_status_sub = -1;
 	subs.manipulator_joint_status_sub = -1;
-
+	subs.coup_force_sub = -1;
 
 
 
@@ -2457,6 +2462,17 @@ int sdlog2_thread_main(int argc, char *argv[])
 			LOGBUFFER_WRITE_AND_COUNT(MANJ);
 
 		}
+		/*-------COUPLING FORCE DATA-----*/
+		if (copy_if_updated(ORB_ID(coupling_force), &subs.coup_force_sub, &buf.coup_force)){
+			log_msg.msg_type = LOG_CFOR_MSG;
+			log_msg.body.log_CFOR.force_x = buf.coup_force.force_x;
+			log_msg.body.log_CFOR.force_y = buf.coup_force.force_y;
+			log_msg.body.log_CFOR.force_z = buf.coup_force.force_z;
+			log_msg.body.log_CFOR.moment_x = buf.coup_force.moment_x;
+			log_msg.body.log_CFOR.moment_y = buf.coup_force.moment_y;
+			log_msg.body.log_CFOR.moment_z = buf.coup_force.moment_z;
+			LOGBUFFER_WRITE_AND_COUNT(CFOR);
+		};
 
 		pthread_mutex_lock(&logbuffer_mutex);
 

@@ -146,15 +146,15 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 	//
 	thread_running = true;
 	struct target_endeff_frame_s mavros_data;
-	//manipulator_joint_status
+
 	struct manipulator_joint_status_s mavros_data1;
 	struct endeff_frame_status_s mavros_data2;
 	memset(&mavros_data , 0, sizeof(mavros_data));
 	memset(&mavros_data1 , 0, sizeof(mavros_data1));
 	memset(&mavros_data2 , 0, sizeof(mavros_data2));
 	orb_advert_t target_endeff_frame_pub = orb_advertise(ORB_ID(target_endeff_frame), &mavros_data);
-	//orb_advert_t manipulator_joint_status_pub = orb_advertise(ORB_ID(manipulator_joint_status), &mavros_data1);
-	//orb_advert_t endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &mavros_data2);
+	orb_advert_t manipulator_joint_status_pub = orb_advertise(ORB_ID(manipulator_joint_status), &mavros_data1);
+	orb_advert_t endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &mavros_data2);
 	while (!thread_should_exit) {
 		mavros_data.timestamp = hrt_absolute_time();
 		mavros_data.x = 0.41f;
@@ -162,14 +162,44 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 		mavros_data.z = 0.15f;
 //		mavros_data.arm_enable =2;
 		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
-		sleep(5);
+		sleep(1);
 		mavros_data.timestamp = hrt_absolute_time();
-		mavros_data.x = 0.0f;
-		mavros_data.y = 0.0f;
-		mavros_data.z = 0.0f;
+		mavros_data.x = 0.1f;
+		mavros_data.y = 0.1f;
+		mavros_data.z = 0.1f;
 //		mavros_data.arm_enable =2;
 		orb_publish(ORB_ID(target_endeff_frame), target_endeff_frame_pub, &mavros_data);
-		sleep(5);
+//		sleep(5);
+
+		mavros_data.timestamp = hrt_absolute_time();
+		mavros_data2.x= 0.41f;
+		mavros_data2.y = -0.06f;
+		mavros_data2.z= 0.15f;
+
+		orb_publish(ORB_ID(endeff_frame_status), endeff_frame_status_pub, &mavros_data2);
+		sleep(1);
+		mavros_data2.timestamp = hrt_absolute_time();
+		mavros_data2.x= 0.2f;
+		mavros_data2.y = 0.2f;
+		mavros_data2.z= 0.2f;
+
+		orb_publish(ORB_ID(endeff_frame_status), endeff_frame_status_pub, &mavros_data2);
+//		sleep(5);
+
+		mavros_data.timestamp = hrt_absolute_time();
+		mavros_data1.joint_posi_1= 0.41f;
+		mavros_data1.joint_posi_2 = -0.06f;
+		mavros_data1.joint_posi_3= 0.15f;
+
+		orb_publish(ORB_ID(manipulator_joint_status), manipulator_joint_status_pub, &mavros_data1);
+		sleep(1);
+		mavros_data1.timestamp = hrt_absolute_time();
+		mavros_data1.joint_posi_1= 0.3f;
+		mavros_data1.joint_posi_2 = 0.3f;
+		mavros_data1.joint_posi_3= 0.3f;
+
+		orb_publish(ORB_ID(manipulator_joint_status), manipulator_joint_status_pub, &mavros_data1);
+//		sleep(5);
 	}
 
 	warnx("[mavlink_msg_send] exiting.\n");

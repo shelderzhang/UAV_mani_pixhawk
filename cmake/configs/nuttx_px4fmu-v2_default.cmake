@@ -187,6 +187,9 @@ set(config_module_list
 	
 	# For Manipulator control
 	modules/manipulator_control
+	
+	# For Coupling Force Sensor data
+	modules/coupling_force
 )
 
 set(config_extra_builtin_cmds

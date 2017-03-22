@@ -737,7 +737,17 @@ struct log_MANJ_s {
 	float rate7;
 };
 
-
+/*------COUPLINGFORCE - COUPLING_FORCE------*/
+// By gyzhang
+#define LOG_CFOR_MSG 136
+struct log_CFOR_s{
+	float force_x;
+	float force_y;
+	float force_z;
+	float moment_x;
+	float moment_y;
+	float moment_z;
+};
 
 #pragma pack(pop)
 
@@ -822,7 +832,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(EFFR, "Bffffffffffff","Arme,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
 	LOG_FORMAT(EFFS, "Bbfffffffffffff","Arme,Gs,Gp,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
 	LOG_FORMAT(MANJ, "ffffffffffffff","q1,q2,q3,q4,q5,q6,q7,r1,r2,r3,r4,r5,r6,r7"),
-
+	LOG_FORMAT(CFOR, "ffffff","Fx,Fy,Fz,Mx,My,Mz"),
 
 };
 

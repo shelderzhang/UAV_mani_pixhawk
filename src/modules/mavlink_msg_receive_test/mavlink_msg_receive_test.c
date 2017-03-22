@@ -52,6 +52,7 @@
 #include <uORB/topics/manipulator_joint_status.h>
 #include <uORB/topics/target_endeff_frame.h>
 #include <uORB/topics/endeff_frame_status.h>
+#include <uORB/topics/coupling_force.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
@@ -151,20 +152,23 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 
 	int manipulator_joint_status_sub_fd = orb_subscribe(ORB_ID(manipulator_joint_status));
 	int endeff_frame_status_sub_fd = orb_subscribe(ORB_ID(endeff_frame_status));
+	int coupl_force_sub_fd = orb_subscribe(ORB_ID(coupling_force));
+	orb_set_interval(coupl_force_sub_fd, 1000);
 	orb_set_interval(target_endeff_frame_sub_fd, 100);
 	orb_set_interval(manipulator_joint_status_sub_fd, 100);
 	orb_set_interval(endeff_frame_status_sub_fd, 100);
 
-	struct pollfd fds[3] = {
+	struct pollfd fds[4] = {
 			{ .fd = target_endeff_frame_sub_fd,   .events = POLLIN },
 			{ .fd = manipulator_joint_status_sub_fd,   .events = POLLIN },
 			{ .fd = endeff_frame_status_sub_fd,   .events = POLLIN },
+			{ .fd = coupl_force_sub_fd,   .events = POLLIN  },
 	};
 	int error_counter = 0;
 
 
 	while (!thread_should_exit) {
-		int poll_ret = px4_poll(fds, 3, 1000);
+		int poll_ret = px4_poll(fds, 4, 1000);
 		if (poll_ret == 0)
 		{
 			printf("[mavlink_msg_receive] Got no data within one second\n");
@@ -213,6 +217,16 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 //				printf("\t gripper_status:%8.4f", (double)data.gripper_status);
 //				printf("\t gripper_position:%8.4f", (double)data.gripper_posi);
 //			}
+			if (fds[3].revents & POLLIN)
+			{
+				struct coupling_force_s data;
+				orb_copy(ORB_ID(coupling_force), coupl_force_sub_fd, &data);	// �������
+				PX4_WARN("\n mavlink_msg_receive: coupling_force \n \t Force:%8.4f %8.4f %8.4f", (double)data.force_x, (double)data.force_y, (double)data.force_z);
+
+
+				printf("\t Torque: %8.4f %8.4f %8.4f\n",(double)data.moment_x,(double)data.moment_y,(double)data.moment_z);
+
+			}
 		}
 
 	}
