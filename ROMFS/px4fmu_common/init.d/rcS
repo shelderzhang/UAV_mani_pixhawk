@@ -629,8 +629,9 @@ then
 		nshterm /dev/ttyACM0 &
 	else
 	    # gyzhang
-		#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
-		nshterm /dev/ttyACM0 &
+	    # nshterm /dev/ttyACM0 &
+		mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+		
 	fi
 
 	#
@@ -658,6 +659,7 @@ then
 		else
 			if param compare SYS_LOGGER 0
 			then
+			# gyzhang default sdlog2 start -r 100 -a -b 9 -t
 				if sdlog2 start -r 100 -a -b 9 -t
 				then
 				fi

@@ -37,13 +37,14 @@ mc_pos_control start
 #
 land_detector start multicopter
 
+#-----custome-gyzhang-----
 #manipulator_control start
-#coupling_force_app start
 
-mavlink_msg_send_test start
-#--- test new uorb topic slog---
-#sdlog2 stop
-#sdlog2 start -r 50 -e -b 22 -t 
+coupling_force_app start
+
+#mavlink_msg_send_test start
+sdlog2 stop
+sdlog2 start -r 100 -e -b 9 -t
 
 #px4_daemon_app start
 #mavlink start -d /dev/ttyS6 -b 57600
