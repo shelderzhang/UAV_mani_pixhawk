@@ -45,7 +45,7 @@ mc_pos_control start
 #
 land_detector start multicopter
 
-#mavlink start -d /dev/ttyS6 -b 57600
+mavlink start -d /dev/ttyS6 -b 57600 -m costum
 #mavlink stream -d /dev/ttyS2 -s ATT_POS_MOCAP -r 200
 
 #angacc_acc_ekf start

@@ -653,7 +653,7 @@ struct log_AAF_s {
 };
 
 /* --- Angular Acceleration and Acceleration --- */
-#define LOG_ACCF_MSG 64
+#define LOG_ACCF_MSG 65
 struct log_ACCF_s {
 	float acc_ff[3];
 	uint8_t saturation;
