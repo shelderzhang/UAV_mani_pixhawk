@@ -736,7 +736,7 @@ bool
 MulticopterAttitudeControl::angacc_acc_poll()
 {
 	/* check if there is a new message */
-	bool updated;
+	bool updated = false;
 	orb_check(_angacc_acc_sub, &updated);
 
 	if (updated) {
@@ -899,11 +899,11 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 				ff_value.zero();
 				pretimeStamp = timeNow;
 			}
+			angacc_ff_flag = true;
 			if (updated) {
 				float dt_ang_ff = (timeNow - pretimeStamp) * 1e-6f;
-				PX4_INFO("dt_ang_ff %8.4f", (double)dt_ang_ff);
+//				PX4_INFO("dt_ang_ff %8.4f", (double)dt_ang_ff);
 				pretimeStamp = timeNow;
-				angacc_ff_flag = true;
 				math::Vector<3> angacc(_angacc_acc.ang_acc_x, _angacc_acc.ang_acc_y, _angacc_acc.ang_acc_z);
 
 				math::Vector<3> ff_delta =  (pre_torque_sp - _params.inertial * angacc * _params.ff_inertial_gain) * (_params.ff_angacc_a * dt_ang_ff);
@@ -919,8 +919,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 					saturation_z = true;
 				}
 				ff_value = ff_value_temp;
-//				PX4_INFO("ff_ang: %8.4f,%8.4f,%8.4f", (double)ff_value(0), (double)ff_value(1),(double)ff_value(2));
-
+//
 			}
 		} else {
 			angacc_ff_flag = false;
@@ -932,6 +931,9 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		_angacc_ff.angacc_ff[0] = ff_value(0);
 		_angacc_ff.angacc_ff[1] = ff_value(1);
 		_angacc_ff.angacc_ff[2] = ff_value(2);
+
+//		PX4_INFO("ff_ang: %8.4f,%8.4f,%8.4f", (double)ff_value(0), (double)ff_value(1),(double)ff_value(2));
+
 
 		_angacc_ff.saturation = saturation_xy | (saturation_z << 1);
 		
@@ -1184,7 +1186,7 @@ MulticopterAttitudeControl::start()
 	_control_task = px4_task_spawn_cmd("mc_att_control",
 					   SCHED_DEFAULT,
 					   SCHED_PRIORITY_MAX - 5,
-					   1500,
+					   3000,
 					   (px4_main_t)&MulticopterAttitudeControl::task_main_trampoline,
 					   nullptr);
 

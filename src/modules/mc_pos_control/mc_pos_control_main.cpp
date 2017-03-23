@@ -2083,20 +2083,17 @@ MulticopterPositionControl::task_main()
 						if (acc_ff_flag == false) {	// first time in acc feed back mode
 							ff_value.zero();
 							pretimeStamp = timeNow;
+							PX4_INFO("acc_ff_flag = false!");
 						}
+						acc_ff_flag = true;
 //						PX4_INFO("pos: %d, %d",_angacc_acc_updated,_angacc_acc.valid_acc);
 						if (_angacc_acc_updated && _angacc_acc.valid_acc) {
-							math::Vector<3> thrust_sp_temp(0.0f, 0.0f, 0.0f);
 							float dt_acc_ff = (timeNow - pretimeStamp) * 1e-6f;
 
 //							PX4_INFO("dt_acc_ff: %8.4f",(double)dt_acc_ff);
 
 							pretimeStamp = timeNow;
-							acc_ff_flag = true;
 							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
-							mavlink_log_info(&_mavlink_log_pub, "acc: %8.4f,%8.4f,%8.4f",
-									(double)acc(0),(double)acc(1),(double)acc(2));
-
 							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(_hovering_thr.get() / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
 
 //							PX4_INFO("_pre_thrust_sp:%8.4f, %8.4f, %8.4f",(double)_pre_thrust_sp(0),
@@ -2114,9 +2111,9 @@ MulticopterPositionControl::task_main()
 								ff_saturation_z = true;
 							}
 							ff_value = ff_value_temp;
-							PX4_INFO("ff_acc: %8.4f,%8.4f,%8.4f", (double)ff_value(0), (double)ff_value(1),(double)ff_value(2));
+//							PX4_INFO("ff_acc: %8.4f,%8.4f,%8.4f", (double)ff_value(0), (double)ff_value(1),(double)ff_value(2));
 
-							thrust_sp_temp = thrust_sp + ff_value;
+							math::Vector<3> thrust_sp_temp = thrust_sp + ff_value;
 
 							/* limit min lift */
 							if (-thrust_sp_temp(2) < thr_min) {
@@ -2196,19 +2193,22 @@ MulticopterPositionControl::task_main()
 								}
 
 								thrust_sp_temp_abs = thr_max;
+								ff_value = thrust_sp_temp - thrust_sp;
 							}
+							thrust_abs = thrust_sp_temp_abs;
 						}
 					} else {
 						acc_ff_flag = false;
 						ff_value.zero();
 					}
 
-//					thrust_sp = thrust_sp_temp;
+					thrust_sp += ff_value;
 
 					_acc_ff.acc_ff[0] = ff_value(0);
 					_acc_ff.acc_ff[1] = ff_value(1);
 					_acc_ff.acc_ff[2] = ff_value(2);
 
+//					PX4_INFO("ff_acc: %8.4f,%8.4f,%8.4f", (double)ff_value(0), (double)ff_value(1),(double)ff_value(2));
 					_acc_ff.saturation = ff_saturation_xy | (ff_saturation_z << 1);
 
 					if (_acc_ff_pub == nullptr) {
@@ -2482,7 +2482,7 @@ MulticopterPositionControl::start()
 	_control_task = px4_task_spawn_cmd("mc_pos_control",
 					   SCHED_DEFAULT,
 					   SCHED_PRIORITY_MAX - 5,
-					   1900,
+					   3000,
 					   (px4_main_t)&MulticopterPositionControl::task_main_trampoline,
 					   nullptr);
 
