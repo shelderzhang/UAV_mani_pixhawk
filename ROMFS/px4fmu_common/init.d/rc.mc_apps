@@ -4,6 +4,9 @@
 # att & pos estimator, att & pos control.
 #
 
+param set SYS_MC_EST_GROUP 1
+param set ATT_EXT_HDG_M 2
+param save
 
 #---------------------------------------
 # Estimator group selction
@@ -46,8 +49,8 @@ mc_pos_control start
 land_detector start multicopter
 
 mavlink start -d /dev/ttyS6 -b 57600 -m costum
-#mavlink stream -d /dev/ttyS2 -s ATT_POS_MOCAP -r 200
+mavlink stream -d /dev/ttyACM0 -s ATT_POS_MOCAP -r 200
 
-#angacc_acc_ekf start
+angacc_acc_ekf start
 
 #px4_daemon_app
