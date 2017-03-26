@@ -79,6 +79,8 @@
 #include <uORB/topics/angacc_acc.h>
 #include <uORB/topics/acc_ff.h>
 
+#include <uORB/topics/battery_status.h>
+
 #include <systemlib/systemlib.h>
 #include <systemlib/mavlink_log.h>
 #include <mathlib/mathlib.h>
@@ -96,7 +98,7 @@
 
 #define HOVERING_MODE
 #ifdef HOVERING_MODE
-	static math::Vector<3> hovering_point(0.0f, 0.0f, -1.5f);
+	static math::Vector<3> hovering_point(0.0f, 0.0f, -1.2f);
 #endif
 
 #define ACC_FF
@@ -150,6 +152,7 @@ private:
 	int		_global_vel_sp_sub;		/**< offboard global velocity setpoint */
 
 	int		_angacc_acc_sub;		/* angular acceleration and acceleration*/
+	int 	_battery_status_sub;
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
@@ -170,6 +173,8 @@ private:
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
 	struct angacc_acc_s			_angacc_acc;
 	struct acc_ff_s				_acc_ff;
+
+	struct battery_status_s		_battery_status;
 
 	control::BlockParamFloat _manual_thr_min;
 	control::BlockParamFloat _manual_thr_max;
@@ -411,6 +416,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_pos_sp_triplet_sub(-1),
 	_global_vel_sp_sub(-1),
 	_angacc_acc_sub(-1),
+	_battery_status_sub(-1),
 
 	/* publications */
 	_att_sp_pub(nullptr),
@@ -431,6 +437,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_global_vel_sp{},
 	_angacc_acc{},
 	_acc_ff{},
+	_battery_status{},
 	_manual_thr_min(this, "MANTHR_MIN"),
 	_manual_thr_max(this, "MANTHR_MAX"),
 	_acc_ff_a(this, "FF_ACC"),
@@ -825,6 +832,11 @@ MulticopterPositionControl::poll_subscriptions()
 //		PX4_INFO("_angacc_acc: %d", _angacc_acc.valid_acc);
 	} else {
 		_angacc_acc_updated = false;
+	}
+
+	orb_check(_battery_status_sub, &updated);
+	if(updated) {
+		orb_copy(ORB_ID(battery_status), _battery_status_sub, &_battery_status);
 	}
 }
 
@@ -1400,6 +1412,7 @@ MulticopterPositionControl::task_main()
 	_local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
 	_global_vel_sp_sub = orb_subscribe(ORB_ID(vehicle_global_velocity_setpoint));
 	_angacc_acc_sub = orb_subscribe(ORB_ID(angacc_acc));
+	_battery_status_sub = orb_subscribe(ORB_ID(battery_status));
 
 	parameters_update(true);
 
@@ -2083,7 +2096,7 @@ MulticopterPositionControl::task_main()
 						if (acc_ff_flag == false) {	// first time in acc feed back mode
 							ff_value.zero();
 							pretimeStamp = timeNow;
-							PX4_INFO("acc_ff_flag = false!");
+							// PX4_INFO("acc_ff_flag = false!");
 						}
 						acc_ff_flag = true;
 //						PX4_INFO("pos: %d, %d",_angacc_acc_updated,_angacc_acc.valid_acc);
@@ -2094,9 +2107,14 @@ MulticopterPositionControl::task_main()
 
 							pretimeStamp = timeNow;
 							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
-							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(_hovering_thr.get() / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
 
-//							PX4_INFO("_pre_thrust_sp:%8.4f, %8.4f, %8.4f",(double)_pre_thrust_sp(0),
+							float hovering_thrust = -0.12f * _battery_status.remaining + 0.6837f;
+							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(hovering_thrust / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
+
+//							mavlink_and_console_log_info(&_mavlink_log_pub, "ff_delta:%8.4f, %8.4f, %8.4f",(double)ff_delta(0),
+//									(double)ff_delta(1),(double)ff_delta(2));
+//
+//							mavlink_and_console_log_info(&_mavlink_log_pub, "_pre_thrust_sp:%8.4f, %8.4f, %8.4f",(double)_pre_thrust_sp(0),
 //									(double)_pre_thrust_sp(1),(double)_pre_thrust_sp(2));
 
 							math::Vector<3> ff_value_temp = ff_value + ff_delta;
@@ -2107,7 +2125,7 @@ MulticopterPositionControl::task_main()
 								ff_saturation_xy = true;
 							}
 							if (fabsf(ff_value_temp(2)) > _ff_max_vertical.get()) {
-								ff_value_temp(2) = _ff_max_vertical.get();
+								ff_value_temp(2) = ff_value_temp(2)/fabsf(ff_value_temp(2)) * _ff_max_vertical.get();
 								ff_saturation_z = true;
 							}
 							ff_value = ff_value_temp;
@@ -2196,12 +2214,14 @@ MulticopterPositionControl::task_main()
 								ff_value = thrust_sp_temp - thrust_sp;
 							}
 							thrust_abs = thrust_sp_temp_abs;
+//							mavlink_and_console_log_info(&_mavlink_log_pub, "ff_value:%8.4f, %8.4f, %8.4f",(double)ff_value(0),
+//									(double)ff_value(1),(double)ff_value(2));
 						}
 					} else {
 						acc_ff_flag = false;
 						ff_value.zero();
 					}
-
+//					ff_value.zero();
 					thrust_sp += ff_value;
 
 					_acc_ff.acc_ff[0] = ff_value(0);
