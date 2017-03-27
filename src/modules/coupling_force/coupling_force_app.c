@@ -207,7 +207,7 @@ int coupling_force_app_main(int argc, char *argv[])
 int coupling_force_app_thread_main(int argc, char *argv[])
 {
 	thread_running = true;
-    printf("Hello coupling force!\n");
+	warnx("initializing!\n");
     char out_buffer[50];
     char byte_data = '0';
     char in_buffer[64] = "";
@@ -231,27 +231,32 @@ int coupling_force_app_thread_main(int argc, char *argv[])
         return -1;
     }
 
-    sleep(10);
+    sleep(6);
     sprintf(out_buffer,"AT+SMPR=200\r\n");
     usleep(100);
     write(uart_read,&out_buffer,strlen(out_buffer));
+
     sprintf(out_buffer,"AT+GSD\r\n");
     write(uart_read,&out_buffer,strlen(out_buffer));
     usleep(10);
 
-    printf("[coupling force]uart init is successful\n");
+    warnx("initialize successfully!!\n");
     usleep(100000);
-    printf("usleep is over\n");
+    warnx("task start \n");
 
     struct coupling_force_s coup_force;
     memset(&coup_force, 0, sizeof(coup_force));
     orb_advert_t coup_force_pub_fd = orb_advertise(ORB_ID(coupling_force), &coup_force);
 
-    while(true){
+    while(!thread_should_exit){
 
         read(uart_read,&byte_data,1);
         in_buffer[index] = byte_data;
-//       printf("Data_byte: 0x %x\n ",byte_data);
+        if (index ==2)
+        {
+        	printf("Data_byte: 0x %x\n ",in_buffer[1]);
+        }
+
         if ((index == 0)&&(in_buffer[index] == 0xAA))
         		index =1;
         else if ((index == 1)&&(in_buffer[index] == 0x55))
@@ -262,8 +267,6 @@ int coupling_force_app_thread_main(int argc, char *argv[])
         {
         	index = 0;
         	force_sensor_data_decode(coupling_force_buff,in_buffer);
-        	//usleep(1000);
-        	//printf("%8.4f\n",(double)coupling_force_buff[2]);
 
         	coup_force.force_x = coupling_force_buff[0];
         	coup_force.force_y = coupling_force_buff[1];
@@ -274,8 +277,12 @@ int coupling_force_app_thread_main(int argc, char *argv[])
         	orb_publish(ORB_ID(coupling_force),coup_force_pub_fd, &coup_force);
         }
         else
+        {
         	index = 0;
+        }
+
     }
+    warnx("exiting.\n");
     thread_running = false;
     return 0;
 }

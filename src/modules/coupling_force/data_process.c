@@ -6,6 +6,8 @@
  */
 #include <stdio.h>
 #include<modules/coupling_force/data_process.h>
+int countc = 0;
+int counte = 0;
 void force_sensor_data_decode(float* resultData, char* buff)
 {
 	uint8_t i;
@@ -44,21 +46,21 @@ void force_sensor_data_decode(float* resultData, char* buff)
 		{
 			Index = 6;
 			char CheckSum = 0x00;
-		    for(i = 0x00;i < 0x0c;i++)
+		    for(i = 0;i < 12;i++)
 			{
-				CheckSum += buff[Index];//
+				CheckSum += buff[Index];
 				Index++;
 			}
-			if(CheckSum == buff[Index])//
+			if(CheckSum == buff[Index])
 			{
+//				printf("CheckSum correct!!! : %d \n",countc++);
 
                 Index = 6;
 
-                for(k = 0x00;k < 6; k++)
+                for(k = 0;k < 6; k++)
                 {
                     ADcounts[k] = buff[Index]*256 + buff[Index+1]; //AD
-                    m_dResultChValue[k] =   1000*( ADcounts[k]-m_dAmpZero[k])/65535*5/m_dGain[k]/2.503526f;
-//                    m_dResultChValue[k] =   1000*5*( ADcounts[k]-m_dAmpZero[k])/(65535*m_dGain[k]*2.5);
+                    m_dResultChValue[k] = 1000*(( ADcounts[k]-m_dAmpZero[k])/65535*5)/m_dGain[k]/2.503526f;
                     Index = Index + 2;
                 }
                 for(i = 0x00;i < 6; i++)
@@ -67,14 +69,17 @@ void force_sensor_data_decode(float* resultData, char* buff)
 			                   +m_dResultChValue[2]*decoupled[i][2]+m_dResultChValue[3]*decoupled[i][3]
 			                   +m_dResultChValue[4]*decoupled[i][4]+m_dResultChValue[5]*decoupled[i][5];
                 }
-				resultData[0]=resultData[0]+2.1482f;
-                resultData[1]=resultData[1]+1.1133f;
-                resultData[2]=resultData[2]+1.1122f;
-                resultData[3]=resultData[3]+0.0261f;
-                resultData[4]=resultData[4]+0.022f;
-                resultData[5]=resultData[5]+0.0208f;
+				resultData[0]=resultData[0]+0.0f;
+                resultData[1]=resultData[1]+0.0f;
+                resultData[2]=resultData[2]+0.0f;
+                resultData[3]=resultData[3]+0.0f;
+                resultData[4]=resultData[4]+0.0f;
+                resultData[5]=resultData[5]+0.0f;
 			}
-
+			else
+			{
+//				printf("error count!!!: %d \n",counte++);
+			}
 		}
 
 }

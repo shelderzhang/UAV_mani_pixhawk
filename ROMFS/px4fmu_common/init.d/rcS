@@ -522,7 +522,8 @@ then
 		fi
 		if param compare SYS_COMPANION 157600
 		then
-			mavlink start -d /dev/ttyS2 -b 57600 -m osd -r 1000
+		    #gyzhang
+			#mavlink start -d /dev/ttyS2 -b 57600 -m osd -r 1000
 		fi
 		if param compare SYS_COMPANION 257600
 		then
@@ -629,8 +630,8 @@ then
 		nshterm /dev/ttyACM0 &
 	else
 	    # gyzhang
-	    # nshterm /dev/ttyACM0 &
-		mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+	    nshterm /dev/ttyACM0 &
+		#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
 		
 	fi
 
@@ -660,7 +661,7 @@ then
 			if param compare SYS_LOGGER 0
 			then
 			# gyzhang default sdlog2 start -r 100 -a -b 9 -t
-				if sdlog2 start -r 100 -a -b 9 -t
+				if sdlog2 start -r 50 -e -b 9 -t
 				then
 				fi
 			else

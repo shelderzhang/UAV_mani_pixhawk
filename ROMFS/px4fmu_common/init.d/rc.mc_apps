@@ -43,8 +43,8 @@ land_detector start multicopter
 coupling_force_app start
 
 #mavlink_msg_send_test start
-sdlog2 stop
-sdlog2 start -r 100 -e -b 9 -t
+
+
 
 #px4_daemon_app start
 #mavlink start -d /dev/ttyS6 -b 57600
