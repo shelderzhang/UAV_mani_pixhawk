@@ -86,8 +86,8 @@ private:
     int _sub_param_update;
     int _sub_vel_mocap;
 
-    orb_advert_t _pub_angacc_acc;
-    orb_advert_t _pub_fake_mocap;       //for monitoring angacc and acc estimator
+    orb_advert_t    _pub_angacc_acc;
+    orb_advert_t    _pub_fake_mocap;       //for monitoring angacc and acc estimato
 
     struct sensor_gyro_s                _sensor_gyro;
     struct control_state_s              _ctrl_state;
@@ -593,7 +593,6 @@ int angacc_acc_ekf_main(int argc, char *argv[])
 			warnx("start failed");
 			return 1;
 		}
-
 		return 0;
 	}
 

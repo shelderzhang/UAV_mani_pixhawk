@@ -2090,17 +2090,20 @@ MulticopterPositionControl::task_main()
 					bool ff_saturation_xy = false;
 					bool ff_saturation_z = false;
 					if (_manual.aux1 > 0.6f) {
-
+						
 						hrt_abstime timeNow = hrt_absolute_time();
 						static hrt_abstime pretimeStamp = timeNow;
-						if (acc_ff_flag == false) {	// first time in acc feed back mode
-							ff_value.zero();
-							pretimeStamp = timeNow;
-							// PX4_INFO("acc_ff_flag = false!");
-						}
-						acc_ff_flag = true;
 //						PX4_INFO("pos: %d, %d",_angacc_acc_updated,_angacc_acc.valid_acc);
 						if (_angacc_acc_updated && _angacc_acc.valid_acc) {
+							// first time in acc feed back mode
+							if (acc_ff_flag == false ) {
+								ff_value.zero();
+								pretimeStamp = timeNow;
+								// PX4_INFO("acc_ff_flag = false!");
+								acc_ff_flag = true;
+								mavlink_log_critical(&_mavlink_log_pub,"Acc FF Started!");
+							}
+
 							float dt_acc_ff = (timeNow - pretimeStamp) * 1e-6f;
 
 //							PX4_INFO("dt_acc_ff: %8.4f",(double)dt_acc_ff);
@@ -2108,13 +2111,13 @@ MulticopterPositionControl::task_main()
 							pretimeStamp = timeNow;
 							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
 
-							float hovering_thrust = -0.12f * _battery_status.remaining + 0.6837f;
+							float hovering_thrust = -0.058f * _battery_status.voltage_filtered_v + 1.2348f;
 							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(hovering_thrust / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
 
-//							mavlink_and_console_log_info(&_mavlink_log_pub, "ff_delta:%8.4f, %8.4f, %8.4f",(double)ff_delta(0),
+//							mavlink_log_critical(&_mavlink_log_pub, "ff_delta:%8.4f, %8.4f, %8.4f",(double)ff_delta(0),
 //									(double)ff_delta(1),(double)ff_delta(2));
 //
-//							mavlink_and_console_log_info(&_mavlink_log_pub, "_pre_thrust_sp:%8.4f, %8.4f, %8.4f",(double)_pre_thrust_sp(0),
+//							mavlink_log_critical(&_mavlink_log_pub, "_pre_thrust_sp:%8.4f, %8.4f, %8.4f",(double)_pre_thrust_sp(0),
 //									(double)_pre_thrust_sp(1),(double)_pre_thrust_sp(2));
 
 							math::Vector<3> ff_value_temp = ff_value + ff_delta;
@@ -2214,7 +2217,7 @@ MulticopterPositionControl::task_main()
 								ff_value = thrust_sp_temp - thrust_sp;
 							}
 							thrust_abs = thrust_sp_temp_abs;
-//							mavlink_and_console_log_info(&_mavlink_log_pub, "ff_value:%8.4f, %8.4f, %8.4f",(double)ff_value(0),
+//							mavlink_log_critical(&_mavlink_log_pub, "ff_value:%8.4f, %8.4f, %8.4f",(double)ff_value(0),
 //									(double)ff_value(1),(double)ff_value(2));
 						}
 					} else {
