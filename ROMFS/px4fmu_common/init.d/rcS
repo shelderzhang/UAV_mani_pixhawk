@@ -721,7 +721,7 @@ then
 				then
 				fi
 			else
-				if sdlog2 start -r 250 -a -b 9 -t
+				if sdlog2 start -r 100 -a -b 9 -t
 				then
 				fi
 			fi

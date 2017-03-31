@@ -2111,7 +2111,7 @@ MulticopterPositionControl::task_main()
 							pretimeStamp = timeNow;
 							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
 
-							float hovering_thrust = -0.058f * _battery_status.voltage_filtered_v + 1.2348f;
+							float hovering_thrust = -0.0539f * _battery_status.voltage_filtered_v + 1.1763f;
 							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(hovering_thrust / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
 
 //							mavlink_log_critical(&_mavlink_log_pub, "ff_delta:%8.4f, %8.4f, %8.4f",(double)ff_delta(0),
