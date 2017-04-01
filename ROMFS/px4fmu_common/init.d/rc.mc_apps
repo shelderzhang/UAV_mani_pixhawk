@@ -52,7 +52,8 @@ coupling_force_app start
 #mavlink stream -d /dev/ttyS6 -s TARGET_INFO -r 25
 
 
-#mavlink start -d /dev/ttyS2 -b 57600 
-#mavlink stream -d /dev/ttyS2 -s TARGET_ENDEFF_FRAME -r 30 
+mavlink start -d /dev/ttyS6 -b 115200 -m custom
+mavlink stream -d /dev/ttyS6 -s TARGET_ENDEFF_FRAME -r 30 
+
 
 
