@@ -125,7 +125,9 @@ set(msg_file_names
 	
 	target_info.msg
 	pid_err.msg
+
 	coupling_force.msg
+
 	)
 
 # Get absolute paths

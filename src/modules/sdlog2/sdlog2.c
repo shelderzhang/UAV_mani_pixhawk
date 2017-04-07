@@ -116,12 +116,14 @@
 /*used to store pid err -bdai<20 Nov 2016>*/
 #include <uORB/topics/pid_err.h>
 
+
 /* store manipulator -gyzhang<26 Fr 2017>*/
 #include <uORB/topics/endeff_frame_status.h>
 #include <uORB/topics/target_endeff_frame.h>
 #include <uORB/topics/manipulator_joint_status.h>
 /* store manipulator -gyzhang<21 MAR 2017>*/
 #include <uORB/topics/coupling_force.h>
+
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1238,11 +1240,13 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct target_info_s target_info;
 
 		struct pid_err_s pid_err;
+
 		//gyzhang
 		struct target_endeff_frame_s target_endeff_frame;
 		struct endeff_frame_status_s endeff_frame_status;
 		struct manipulator_joint_status_s manipulator_joint_status;
 		struct coupling_force_s coup_force;
+
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1310,11 +1314,13 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_ERRX_s log_ERRX;
 			struct log_ERRX_s log_ERRY;
 			struct log_ERRX_s log_ERRZ;
+
 			//gyzhang
 			struct log_EFFR_s log_EFFR;
 			struct log_EFFS_s log_EFFS;
 			struct log_MANJ_s log_MANJ;
 			struct log_CFOR_s log_CFOR;
+
 
 		} body;
 	} log_msg = {
@@ -1369,11 +1375,13 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int tari_sub;
 		/*bdai -bdai<20 Nov 2016>*/
 		int pid_err_sub;
+
 		//gyzhang
 		int target_endeff_frame_sub;
 		int endeff_frame_status_sub;
 		int manipulator_joint_status_sub;
 		int coup_force_sub;
+
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1421,11 +1429,13 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.tari_sub = -1;
 
 	subs.pid_err_sub = -1;
+
 	//gyzhang
 	subs.target_endeff_frame_sub = -1;
 	subs.endeff_frame_status_sub = -1;
 	subs.manipulator_joint_status_sub = -1;
 	subs.coup_force_sub = -1;
+
 
 
 
@@ -2399,6 +2409,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_ERRZ.v_d= buf.pid_err.vz_d;
 			LOGBUFFER_WRITE_AND_COUNT(ERRX);
 		}
+
 		// By gyzhang
 		/* --- TARGET(REFERENCE) ENDEFF FRAME INFORMATION --- */
 		if(copy_if_updated(ORB_ID(target_endeff_frame), &subs.target_endeff_frame_sub, &buf.target_endeff_frame)) {
@@ -2473,6 +2484,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_CFOR.moment_z = buf.coup_force.moment_z;
 			LOGBUFFER_WRITE_AND_COUNT(CFOR);
 		};
+
 
 		pthread_mutex_lock(&logbuffer_mutex);
 

@@ -104,15 +104,16 @@ using namespace matrix;
 #define MIN_DIST		0.01f
 #define MANUAL_THROTTLE_MAX_MULTICOPTER	0.9f
 #define ONE_G	9.8066f
+#define DEG2RAD ((float)M_PI / 180.0f)
 
 static float ELEC_FENCE[3][2] = {-2.5f, 2.5f, -2.5f, 2.5f, -0.45f -2.0f};
 static bool OUT_FENCE = false;
 /*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
 static bool FOLLOW_MODE = true;
 
-static float pos_sp_condition[4] = { 0.4f, 0.02f,
-		30.0f / 180.0f * (float)M_PI, 45.0f / 180.0f * (float)M_PI};
-enum {R = 0, r, ANGLE_MIN, ANGLE_MAX};
+static float pos_sp_condition[4] = { 0.4f, 0.03f,
+		30.0f * DEG2RAD, 45.0f * DEG2RAD};
+enum {R_max = 0, R_min, ANGLE_MIN, ANGLE_MAX};
 
 enum {MIN = 0, MAX};
 static orb_advert_t mavlink_log_pub = nullptr;
@@ -170,7 +171,9 @@ private:
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
-	orb_advert_t	_pid_err_sub;
+
+	orb_advert_t	_pid_err_pub;
+
 
 	orb_id_t _attitude_setpoint_id;
 
@@ -408,7 +411,9 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
 	_global_vel_sp_pub(nullptr),
-	_pid_err_sub(nullptr),
+
+	_pid_err_pub(nullptr),
+
 	_attitude_setpoint_id(0),
 	_vehicle_status{},
 	_vehicle_land_detected{},
@@ -918,6 +923,11 @@ MulticopterPositionControl::control_manual(float dt)
 			_vel_sp(0) = req_vel_sp_scaled(0);
 			_vel_sp(1) = req_vel_sp_scaled(1);
 		}
+	} else {
+		_pos_sp(0) = _pos(0);
+		_pos_sp(1) = _pos(1);
+		_run_pos_control = false; /* request velocity setpoint to be used, instead of position setpoint */
+
 	}
 
 	/* vertical axis */
@@ -1029,8 +1039,9 @@ MulticopterPositionControl::cross_sphere_line(const math::Vector<3> &sphere_c, f
 void MulticopterPositionControl::control_auto(float dt)
 {
 	static uint64_t print_time = hrt_absolute_time();
+//	static uint64_t first_time = hrt_absolute_time();
 	uint64_t now = hrt_absolute_time();
-	bool print =  (now - print_time > 100000);
+	bool print =  (now - print_time > 500000);
 	if (print) print_time = now;
 
 	/* reset position setpoint on AUTO mode activation or if we are not in MC mode */
@@ -1049,14 +1060,16 @@ void MulticopterPositionControl::control_auto(float dt)
 /*used to control in motion capture system -bdai<1 Nov 2016>*/
 #if true
 
-	if (!_target_updated){
-		_pos_sp = _pos;
-		_att_sp.yaw_body = _yaw;
-		return;
-	}
+//	if (!_target_updated){
+//		_pos_sp = _pos;
+//		_att_sp.yaw_body = _yaw;
+//		return;
+//	}
 
 	/*subscribe target position -bdai<1 Nov 2016>*/
 	Vector3f target_pos(_target.x, _target.y, _target.z);
+//	Vector3f target_pos(0.0f, 0.0f, 0.0f);
+
 	Dcmf R_BN;
 	for (int i = 0; i < 3; i++){
 		for (int j = 0; j < 3; j++){
@@ -1064,29 +1077,43 @@ void MulticopterPositionControl::control_auto(float dt)
 		}
 	}
 	Vector3f pos(_pos(0), _pos(1), _pos(2));
+
+//	Vector3f pos = Vector3f(1.5f, .0f, .0f);
+//	Quatf qq;
+//	qq.from_axis_angle(Vector3f(.0f, 1.0f, .0f), (now - first_time)*3.0f * DEG2RAD / 1.0e6f);
+//	Dcmf RR(qq);
+//	pos = RR * pos - R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);;
+
 	Vector3f pos_first_joint = pos +  R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);
 
-	Vector3f direction = (pos_first_joint - target_pos).normalized();
-	Vector3f r = Vector3f(0.0f, 0.0f, 1.0f) % direction;
+	Vector3f direction = (target_pos - pos_first_joint).normalized();
 
-	if (-direction(2) < sinf(pos_sp_condition[ANGLE_MIN])){
+	Vector3f r = (Vector3f(0.0f, 0.0f, 1.0f) % direction).normalized();
+
+	int in_range = 7;
+
+	if (direction(2) < sinf(pos_sp_condition[ANGLE_MIN])) {
 		Quatf q;
-		q.from_axis_angle(r, (float)M_PI / 2.0f + pos_sp_condition[ANGLE_MIN]);
+		q.from_axis_angle(r, (float)M_PI/2.0f - pos_sp_condition[ANGLE_MIN]);
 		Dcmf R(q);
 		direction = R * Vector3f(0.0f, 0.0f, 1.0f);
-	} else if (-direction(2) > sinf(pos_sp_condition[ANGLE_MAX])) {
+		in_range &= 0<<1;
+	} else if (direction(2) > sinf(pos_sp_condition[ANGLE_MAX])){
 		Quatf q;
-		q.from_axis_angle(r, (float)M_PI / 2.0f + pos_sp_condition[ANGLE_MAX]);
+		q.from_axis_angle(r, (float)M_PI/2.0f - pos_sp_condition[ANGLE_MAX]);
 		Dcmf R(q);
 		direction = R * Vector3f(0.0f, 0.0f, 1.0f);
+		in_range &= 0;
 	}
+	Vector3f relative_pos_sp = -direction * pos_sp_condition[R_max];
 
-	Vector3f err_sp = target_pos - pos_first_joint + direction * pos_sp_condition[R];
-
-	if ((pos_first_joint - err_sp).norm() > pos_sp_condition[R]) {
+	/*if current pos is not in right position -bdai<28 Nov 2016>*/
+	Vector3f err_sp = target_pos - pos_first_joint + relative_pos_sp;
+	if (err_sp.norm() > pos_sp_condition[R_min]) {
+		in_range &= 0<<2;
 		_pos_sp = _pos + math::Vector<3>(err_sp(0), err_sp(1), err_sp(2));
 	} else {
-		_pos_sp = _pos;
+//		_pos_sp = _pos;
 	}
 
 	for (int i = 0; i < 3; i++){
@@ -1103,17 +1130,22 @@ void MulticopterPositionControl::control_auto(float dt)
 
 	direction = (target_pos - pos).normalized();
 	/*if there are too close with target -bdai<17 Nov 2016>*/
-	if (math::Vector<3>(direction(0), direction(1), 0).length() > sinf(15 / 180 * M_PI)) {
+	if (math::Vector<3>(direction(0), direction(1), 0).length() > sinf(15 * DEG2RAD)) {
 		_att_sp.yaw_body = atan2f(direction(1), direction(0));
 	}
 
 	print_info(print, &mavlink_log_pub, "pos_ x:%8.3f, y:%8.3f, z:%8.3f",
-				(double)_pos(0), (double)_pos(1), (double)_pos(2));
+				(double)pos(0), (double)pos(1), (double)pos(2));
 	print_info(print, &mavlink_log_pub, "targ x:%8.3f, y:%8.3f, z:%8.3f",
 				(double)target_pos(0), (double)target_pos(1), (double)target_pos(2));
 	print_info(print, &mavlink_log_pub, "p_sp x:%8.3f, y:%8.3f, z:%8.3f, yaw:%8.3f",
 			(double)_pos_sp(0), (double)_pos_sp(1), (double)_pos_sp(2),
 			(double)_att_sp.yaw_body);
+
+	print_info(print, &mavlink_log_pub, "in_range:%d, relpos x:%8.4f, y:%8.4f, z:%8.4f, angle:%8.4f",
+				in_range,
+				(double)relative_pos_sp(0), (double)relative_pos_sp(1), (double)relative_pos_sp(2),
+				(double)(atanf(fabs(relative_pos_sp(2) / relative_pos_sp(0))) / DEG2RAD));
 /*original code  -bdai<1 Nov 2016>*/
 #else
 	//Poll position setpoint
@@ -2146,10 +2178,12 @@ MulticopterPositionControl::task_main()
 			_pid_err.vz_d = vel_err_d(2);
 
 			/* publish pid error */
-			if (_pid_err_sub != nullptr) {
-				orb_publish(ORB_ID(pid_err), _pid_err_sub, &_pid_err);
+
+			if (_pid_err_pub != nullptr) {
+				orb_publish(ORB_ID(pid_err), _pid_err_pub, &_pid_err);
 			} else {
-				_pid_err_sub = orb_advertise(ORB_ID(pid_err), &_pid_err);
+				_pid_err_pub = orb_advertise(ORB_ID(pid_err), &_pid_err);
+
 			}
 
 		} else {
@@ -2303,7 +2337,7 @@ MulticopterPositionControl::start()
 	_control_task = px4_task_spawn_cmd("mc_pos_control",
 					   SCHED_DEFAULT,
 					   SCHED_PRIORITY_MAX - 5,
-					   1900,
+					   2500,
 					   (px4_main_t)&MulticopterPositionControl::task_main_trampoline,
 					   nullptr);
 
