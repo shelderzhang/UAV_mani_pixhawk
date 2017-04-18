@@ -47,7 +47,7 @@ coupling_force_app start
 
 
 #px4_daemon_app start
-#mavlink start -d /dev/ttyS6 -b 57600
+#mavlink start -d /dev/ttyS6 -b 57600 -m custom
 #mavlink stream -d /dev/ttyS6 -s ATT_POS_MOCAP -r 25
 #mavlink stream -d /dev/ttyS6 -s TARGET_INFO -r 25
 

@@ -32,6 +32,7 @@ BlockManipulatorControl::BlockManipulatorControl():
 	//this block has no parent, and has name MANC
 	SuperBlock(NULL, "MANC"),
 	// subscriptions, set rate, add to list
+	//	The minimum interval in milliseconds between updates
 	_pos_sub(ORB_ID(vehicle_local_position), 1000 / 20, 0, &getSubscriptions()),
 	_att_sub(ORB_ID(vehicle_attitude), 1000 / 20, 0, &getSubscriptions()),
 	_manual_sub(ORB_ID(manual_control_setpoint), 1000 / 20, 0, &getSubscriptions()),
@@ -138,6 +139,8 @@ void BlockManipulatorControl::control()
 			_mani_triggered = true;	/*means manipulator can move now -bdai<13 Nov 2016>*/
 		}
 
+		/*limit manipulator in operable space with radius,
+		 * theta(pitch) and psi(yaw) -gyzhang<8 Apr. 2017>*/
 		if (distance_norm < MANI_RANGE[R_MIN]) {
 			mani_sp = MANI_RANGE[R_MIN] * mani_sp.normalized();
 		} else if (distance_norm > MANI_RANGE[R_MAX]) {
@@ -186,6 +189,7 @@ void BlockManipulatorControl::control()
 			_in_range |= 1<<2;
 		}
 
+		/*first joint offset -gyzhang<8 Apr. 2017>*/
 		mani_sp = mani_sp + MANI_FIRST_JOINT;
 
 		print_info(print, &mavlink_log_pub, "_in_range: %d", _in_range);
