@@ -335,9 +335,7 @@ struct log_MOCP_s {
 	float x;
 	float y;
 	float z;
-	float vx;
-	float vy;
-	float vz;
+
 };
 
 /* --- GS0A - GPS SNR #0, SAT GROUP A --- */
@@ -797,7 +795,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(EST5, "ffffffffff", "MAGxI,MAGyI,MAGzI,MAGxIV,MAGyIV,MAGzIV,HeadI,HeadIV,AirI,AirIV"),
 	LOG_FORMAT(EST6, "ffffff", "FxI,FyI,FxIV,FyIV,HAGLI,HAGLIV"),
 	LOG_FORMAT(PWR, "fffBBBBB",		"Periph5V,Servo5V,RSSI,UsbOk,BrickOk,ServoOk,PeriphOC,HipwrOC"),
-	LOG_FORMAT(MOCP, "ffffffffff",		"QuatW,QuatX,QuatY,QuatZ,X,Y,Z,Vx,Vy,Vz"),
+	LOG_FORMAT(MOCP, "fffffff",		"QuatW,QuatX,QuatY,QuatZ,X,Y,Z"),
 	LOG_FORMAT(VISN, "ffffffffff",		"X,Y,Z,VX,VY,VZ,QuatW,QuatX,QuatY,QuatZ"),
 	LOG_FORMAT(GS0A, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
 	LOG_FORMAT(GS0B, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),

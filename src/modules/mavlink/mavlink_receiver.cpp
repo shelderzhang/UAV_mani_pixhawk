@@ -820,9 +820,7 @@ MavlinkReceiver::handle_message_att_pos_mocap(mavlink_message_t *msg)
 	att_pos_mocap.y = mocap.y;
 	att_pos_mocap.z = mocap.z;
 
-	att_pos_mocap.vx = mocap.vx;
-	att_pos_mocap.vy = mocap.vy;
-	att_pos_mocap.vz = mocap.vz;
+
 
 
 	if (_att_pos_mocap_pub == nullptr) {

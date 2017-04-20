@@ -243,7 +243,6 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 				PX4_WARN("\n mavlink_msg_receive: att_pos_mocap \n \t POS:%8.4f %8.4f %8.4f", (double)data5.x, (double)data5.y, (double)data5.z);
 
 
-				printf("\t VEL: %8.4f %8.4f %8.4f\n",(double)data5.vx,(double)data5.vy,(double)data5.vz);
 
 			}
 		}
