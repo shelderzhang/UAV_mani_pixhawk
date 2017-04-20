@@ -143,8 +143,10 @@ int px4_daemon_thread_main(int argc, char *argv[])
 
 	thread_running = true;
 	orb_advert_t _att_pos_mocap_pub = NULL;
+//
 //	float MAXNUM = 100;
 //	float index = 0;
+
 	hrt_abstime pre = 0;
 	while (!thread_should_exit) {
 //		warnx("Hello daemon!\n");
@@ -153,6 +155,7 @@ int px4_daemon_thread_main(int argc, char *argv[])
 
 		// Use the component ID to identify the mocap system
 		att_pos_mocap.id = 1;
+
 		hrt_abstime now = hrt_absolute_time();
 		if (now - pre > 20000) {
 			pre = now;
@@ -173,9 +176,6 @@ int px4_daemon_thread_main(int argc, char *argv[])
 			att_pos_mocap.x = 1;
 			att_pos_mocap.y = 3;
 			att_pos_mocap.z = -3;
-			att_pos_mocap.vx = 0.5f;
-			att_pos_mocap.vy = 2;
-			att_pos_mocap.vz = -2;
 
 			if (_att_pos_mocap_pub == NULL) {
 				_att_pos_mocap_pub = orb_advertise(ORB_ID(att_pos_mocap), &att_pos_mocap);
@@ -186,7 +186,6 @@ int px4_daemon_thread_main(int argc, char *argv[])
 		} else {
 			usleep(1000);
 		}
-
 	}
 
 	warnx("[daemon] exiting.\n");
