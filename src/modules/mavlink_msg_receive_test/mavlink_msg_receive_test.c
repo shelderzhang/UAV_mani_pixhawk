@@ -53,7 +53,7 @@
 #include <uORB/topics/target_endeff_frame.h>
 #include <uORB/topics/endeff_frame_status.h>
 #include <uORB/topics/coupling_force.h>
-
+#include <uORB/topics/att_pos_mocap.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 
@@ -153,22 +153,35 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 	int manipulator_joint_status_sub_fd = orb_subscribe(ORB_ID(manipulator_joint_status));
 	int endeff_frame_status_sub_fd = orb_subscribe(ORB_ID(endeff_frame_status));
 	int coupl_force_sub_fd = orb_subscribe(ORB_ID(coupling_force));
+	int att_pos_mocap_sub_fd = orb_subscribe(ORB_ID(att_pos_mocap));
+
 	orb_set_interval(coupl_force_sub_fd, 1000);
 	orb_set_interval(target_endeff_frame_sub_fd, 100);
 	orb_set_interval(manipulator_joint_status_sub_fd, 100);
 	orb_set_interval(endeff_frame_status_sub_fd, 100);
+	orb_set_interval(att_pos_mocap_sub_fd,100);
+	struct target_endeff_frame_s data1;
 
-	struct pollfd fds[4] = {
+	struct manipulator_joint_status_s data2;
+
+	struct endeff_frame_status_s data3;
+
+	struct coupling_force_s data4;
+
+	struct att_pos_mocap_s data5;
+
+	struct pollfd fds[5] = {
 			{ .fd = target_endeff_frame_sub_fd,   .events = POLLIN },
 			{ .fd = manipulator_joint_status_sub_fd,   .events = POLLIN },
 			{ .fd = endeff_frame_status_sub_fd,   .events = POLLIN },
 			{ .fd = coupl_force_sub_fd,   .events = POLLIN  },
+			{ .fd = att_pos_mocap_sub_fd,   .events = POLLIN  },
 	};
 	int error_counter = 0;
 
 
 	while (!thread_should_exit) {
-		int poll_ret = px4_poll(fds, 4, 1000);
+		int poll_ret = px4_poll(fds, 5, 1000);
 		if (poll_ret == 0)
 		{
 			printf("[mavlink_msg_receive] Got no data within one second\n");
@@ -186,45 +199,51 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 
 			if (fds[0].revents & POLLIN)
 			{
-				struct target_endeff_frame_s data;
-				orb_copy(ORB_ID(target_endeff_frame), target_endeff_frame_sub_fd, &data);
-				PX4_WARN("\n mavlink_msg_receive: target_endeff_frame \n \t Position:%8.4f %8.4f %8.4f", (double)data.x, (double)data.y, (double)data.z);
-				printf("\t Attitude:%8.4f %8.4f %8.4f\n", (double)data.roll, (double)data.pitch, (double)data.yaw);
-				printf("\t Velocity :%8.4f %8.4f %8.4f\n", (double)data.vx, (double)data.vy, (double)data.vz);
-				printf("\t Angular speed:%8.4f %8.4f %8.4f\n", (double)data.roll_rate, (double)data.pitch_rate, (double)data.yaw_rate);
-				printf("\t enable robotic arm:%d\n", data.arm_enable);
+
+				orb_copy(ORB_ID(target_endeff_frame), target_endeff_frame_sub_fd, &data1);
+//				PX4_WARN("\n mavlink_msg_receive: target_endeff_frame \n \t Position:%8.4f %8.4f %8.4f", (double)data1.x, (double)data1.y, (double)data1.z);
+//				printf("\t Attitude:%8.4f %8.4f %8.4f\n", (double)data1.roll, (double)data1.pitch, (double)data1.yaw);
+//				printf("\t Velocity :%8.4f %8.4f %8.4f\n", (double)data1.vx, (double)data1.vy, (double)data1.vz);
+//				printf("\t enable robotic arm:%d\n", data1.arm_enable);
 
 			}
 
 			if (fds[1].revents & POLLIN)
 			{
-				struct manipulator_joint_status_s data;
-				orb_copy(ORB_ID(manipulator_joint_status), manipulator_joint_status_sub_fd, &data);
-				PX4_WARN("\n mavlink_msg_receive: manipulator_joint_status \n \t Position:%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", (double)data.joint_posi_1, (double)data.joint_posi_2, (double)data.joint_posi_3, (double)data.joint_posi_4, (double)data.joint_posi_5, (double)data.joint_posi_6, (double)data.joint_posi_7);
-				printf("\t speed:%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f\n", (double)data.joint_rate_1, (double)data.joint_rate_2, (double)data.joint_rate_3, (double)data.joint_rate_4, (double)data.joint_rate_5, (double)data.joint_rate_6, (double)data.joint_rate_7);
-				printf("\t torque:%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f\n", (double)data.torque_1, (double)data.torque_2, (double)data.torque_3, (double)data.torque_4, (double)data.torque_5, (double)data.torque_6, (double)data.torque_7);
+				orb_copy(ORB_ID(manipulator_joint_status), manipulator_joint_status_sub_fd, &data2);
+				PX4_WARN("\n mavlink_msg_receive: manipulator_joint_status \n \t Position:%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", (double)data2.joint_posi_1, (double)data2.joint_posi_2, (double)data2.joint_posi_3, (double)data2.joint_posi_4, (double)data2.joint_posi_5, (double)data2.joint_posi_6, (double)data2.joint_posi_7);
+				printf("\t speed:%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f\n", (double)data2.joint_rate_1, (double)data2.joint_rate_2, (double)data2.joint_rate_3, (double)data2.joint_rate_4, (double)data2.joint_rate_5, (double)data2.joint_rate_6, (double)data2.joint_rate_7);
+				printf("\t torque:%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f\n", (double)data2.torque_1, (double)data2.torque_2, (double)data2.torque_3, (double)data2.torque_4, (double)data2.torque_5, (double)data2.torque_6, (double)data2.torque_7);
 
 			}
 			if (fds[2].revents & POLLIN)
 			{
-				struct endeff_frame_status_s data;
-				orb_copy(ORB_ID(endeff_frame_status), endeff_frame_status_sub_fd, &data);
-				PX4_WARN("\n mavlink_msg_receive: endeff_frame_status \n \t Position:\n\t%8.4f %8.4f %8.4f", (double)data.x, (double)data.y, (double)data.z);
-				printf("\t Attitude:%8.4f %8n.4f %8.4f\n", (double)data.roll, (double)data.pitch, (double)data.yaw);
-				printf("\t Velocity:%8.4f %8.4f %8.4f\n", (double)data.vx, (double)data.vy, (double)data.vz);
-				printf("\t Angular speed:%8.4f %8.4f %8.4f\n", (double)data.roll_rate, (double)data.pitch_rate, (double)data.yaw_rate);
-				printf("\t enable robotic arm:%8.4f", (double)data.arm_enable);
-				printf("\t gripper_status:%8.4f", (double)data.gripper_status);
-				printf("\t gripper_position:%8.4f", (double)data.gripper_posi);
+				orb_copy(ORB_ID(endeff_frame_status), endeff_frame_status_sub_fd, &data3);
+				PX4_WARN("\n mavlink_msg_receive: endeff_frame_status \n \t Position:\n\t%8.4f %8.4f %8.4f", (double)data3.x, (double)data3.y, (double)data3.z);
+				printf("\t Attitude:%8.4f %8n.4f %8.4f\n", (double)data3.roll, (double)data3.pitch, (double)data3.yaw);
+				printf("\t Velocity:%8.4f %8.4f %8.4f\n", (double)data3.vx, (double)data3.vy, (double)data3.vz);
+				printf("\t Angular speed:%8.4f %8.4f %8.4f\n", (double)data3.roll_rate, (double)data3.pitch_rate, (double)data3.yaw_rate);
+				printf("\t enable robotic arm:%8.4f", (double)data3.arm_enable);
+				printf("\t gripper_status:%8.4f", (double)data3.gripper_status);
+				printf("\t gripper_position:%8.4f", (double)data3.gripper_posi);
 			}
 			if (fds[3].revents & POLLIN)
 			{
-				struct coupling_force_s data;
-				orb_copy(ORB_ID(coupling_force), coupl_force_sub_fd, &data);	// �������
-				PX4_WARN("\n mavlink_msg_receive: coupling_force \n \t Force:%8.4f %8.4f %8.4f", (double)data.force_x, (double)data.force_y, (double)data.force_z);
+				orb_copy(ORB_ID(coupling_force), coupl_force_sub_fd, &data4);	// �������
+				PX4_WARN("\n mavlink_msg_receive: coupling_force \n \t Force:%8.4f %8.4f %8.4f", (double)data4.force_x, (double)data4.force_y, (double)data4.force_z);
 
 
-				printf("\t Torque: %8.4f %8.4f %8.4f\n",(double)data.moment_x,(double)data.moment_y,(double)data.moment_z);
+				printf("\t Torque: %8.4f %8.4f %8.4f\n",(double)data4.moment_x,(double)data4.moment_y,(double)data4.moment_z);
+
+			}
+			if (fds[4].revents & POLLIN)
+			{
+				printf("att_pos_mocap");
+				orb_copy(ORB_ID(att_pos_mocap), att_pos_mocap_sub_fd, &data5);	// �������
+				PX4_WARN("\n mavlink_msg_receive: att_pos_mocap \n \t POS:%8.4f %8.4f %8.4f", (double)data5.x, (double)data5.y, (double)data5.z);
+
+
+				printf("\t VEL: %8.4f %8.4f %8.4f\n",(double)data5.vx,(double)data5.vy,(double)data5.vz);
 
 			}
 		}

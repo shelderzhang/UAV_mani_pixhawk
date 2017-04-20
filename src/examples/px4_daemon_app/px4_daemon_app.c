@@ -163,6 +163,7 @@ int px4_daemon_thread_main(int argc, char *argv[])
 			att_pos_mocap.q[1] = 0;
 			att_pos_mocap.q[2] = 0;
 			att_pos_mocap.q[3] = 0;
+
 	//		float value = ++index / MAXNUM;
 	//
 	//		if (index > MAXNUM) {
