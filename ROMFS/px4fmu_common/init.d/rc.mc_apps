@@ -53,7 +53,9 @@ mavlink start -d /dev/ttyS2 -b 57600 -m custom
  
 
 mavlink start -d /dev/ttyS6 -b 57600 -m custom
-#mavlink stream -d /dev/ttyS6 -s TARGET_ENDEFF_FRAME -r 30 
+mavlink stream -d /dev/ttyS6 -s TARGET_ENDEFF_FRAME -r 30 
 
+#mavlink start -d /dev/ttyS3 -b 57600 -m custom
+#mavlink stream -d /dev/ttyS3 -s TARGET_ENDEFF_FRAME -r 30 
 
 

@@ -318,7 +318,8 @@ then
 		unset HIL
 	else
 		unset HIL
-		gps start
+		#gyzhang 
+		#gps start
 	fi
 
 	# waypoint storage
