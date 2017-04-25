@@ -35,8 +35,13 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_sub_gps(ORB_ID(vehicle_gps_position), 1000 / 10, 0, &getSubscriptions()),
 	// vision 5 hz
 	_sub_vision_pos(ORB_ID(vision_position_estimate), 1000 / 5, 0, &getSubscriptions()),
+
+#ifdef USING_MOCAP_VEL
+	_sub_mocap(ORB_ID(att_pos_mocap), 1000 / 50, 0, &getSubscriptions()),
+#else
+	_sub_mocap(ORB_ID(att_pos_vel_mocap), 1000 / 50, 0, &getSubscriptions()),
+#endif
 	// all distance sensors, 10 hz
-	_sub_mocap(ORB_ID(att_pos_mocap), 1000 / 15, 0, &getSubscriptions()),
 	_sub_dist0(ORB_ID(distance_sensor), 1000 / 10, 0, &getSubscriptions()),
 	_sub_dist1(ORB_ID(distance_sensor), 1000 / 10, 1, &getSubscriptions()),
 	_sub_dist2(ORB_ID(distance_sensor), 1000 / 10, 2, &getSubscriptions()),
@@ -76,6 +81,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_vision_z_stddev(this, "VIS_Z"),
 	_vision_on(this, "VIS_ON"),
 	_mocap_p_stddev(this, "VIC_P"),
+	_mocap_v_stddev(this, "VIC_V"),
 	_flow_z_offset(this, "FLW_OFF_Z"),
 	_flow_xy_stddev(this, "FLW_XY"),
 	//_flow_board_x_offs(NULL, "SENS_FLW_XOFF"),
