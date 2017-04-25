@@ -746,7 +746,21 @@ struct log_CFOR_s{
 	float moment_y;
 	float moment_z;
 };
-
+/* --- motion capture with velocity --- */
+// By gyzhang
+#define LOG_MOCV_MSG 137
+struct log_MOCV_s {
+	float qw;
+	float qx;
+	float qy;
+	float qz;
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+};
 #pragma pack(pop)
 
 // the lower type of initialisation is not supported in C++
@@ -831,7 +845,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(EFFS, "Bbfffffffffffff","Arme,Gs,Gp,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
 	LOG_FORMAT(MANJ, "ffffffffffffff","q1,q2,q3,q4,q5,q6,q7,r1,r2,r3,r4,r5,r6,r7"),
 	LOG_FORMAT(CFOR, "ffffff","Fx,Fy,Fz,Mx,My,Mz"),
-
+	LOG_FORMAT(MOCV, "ffffffffff", "QuatW,QuatX,QuatY,QuatZ,X,Y,Z,Vx,Vy,Vz"),
 };
 
 static const unsigned log_formats_num = sizeof(log_formats) / sizeof(log_formats[0]);

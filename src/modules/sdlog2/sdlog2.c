@@ -111,6 +111,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
+#include <uORB/topics/att_pos_vel_mocap.h>
 // By LZ
 #include <uORB/topics/target_info.h>
 /*used to store pid err -bdai<20 Nov 2016>*/
@@ -1246,7 +1247,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct endeff_frame_status_s endeff_frame_status;
 		struct manipulator_joint_status_s manipulator_joint_status;
 		struct coupling_force_s coup_force;
-
+		struct att_pos_vel_mocap_s att_pos_vel_mocap;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1320,7 +1321,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_EFFS_s log_EFFS;
 			struct log_MANJ_s log_MANJ;
 			struct log_CFOR_s log_CFOR;
-
+			struct log_MOCV_s log_MOCV;
 
 		} body;
 	} log_msg = {
@@ -1381,7 +1382,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int endeff_frame_status_sub;
 		int manipulator_joint_status_sub;
 		int coup_force_sub;
-
+		int att_pos_vel_mocap_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1435,7 +1436,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.endeff_frame_status_sub = -1;
 	subs.manipulator_joint_status_sub = -1;
 	subs.coup_force_sub = -1;
-
+	subs.att_pos_vel_mocap_sub = -1;
 
 
 
@@ -2407,6 +2408,20 @@ int sdlog2_thread_main(int argc, char *argv[])
 			LOGBUFFER_WRITE_AND_COUNT(ERRX);
 		}
 
+		if(copy_if_updated(ORB_ID(att_pos_vel_mocap), &subs.att_pos_vel_mocap_sub, &buf.att_pos_vel_mocap)) {
+			log_msg.msg_type = LOG_MOCV_MSG;
+			log_msg.body.log_MOCV.qw = buf.att_pos_vel_mocap.q[0];
+			log_msg.body.log_MOCV.qx = buf.att_pos_vel_mocap.q[1];
+			log_msg.body.log_MOCV.qy = buf.att_pos_vel_mocap.q[2];
+			log_msg.body.log_MOCV.qz = buf.att_pos_vel_mocap.q[3];
+			log_msg.body.log_MOCV.x = buf.att_pos_vel_mocap.x;
+			log_msg.body.log_MOCV.y = buf.att_pos_vel_mocap.y;
+			log_msg.body.log_MOCV.z = buf.att_pos_vel_mocap.z;
+			log_msg.body.log_MOCV.vx = buf.att_pos_vel_mocap.vx;
+			log_msg.body.log_MOCV.vy = buf.att_pos_vel_mocap.vy;
+			log_msg.body.log_MOCV.vz = buf.att_pos_vel_mocap.vz;
+			LOGBUFFER_WRITE_AND_COUNT(MOCV);
+		}
 		// By gyzhang
 		/* --- TARGET(REFERENCE) ENDEFF FRAME INFORMATION --- */
 		if(copy_if_updated(ORB_ID(target_endeff_frame), &subs.target_endeff_frame_sub, &buf.target_endeff_frame)) {
