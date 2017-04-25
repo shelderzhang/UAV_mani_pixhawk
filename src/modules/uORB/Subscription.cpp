@@ -191,5 +191,5 @@ template class __EXPORT Subscription<vehicle_land_detected_s>;
 /*using for motion capture system -bdai<8 Nov 2016>*/
 template class __EXPORT Subscription<target_info_s>;
 template class __EXPORT Subscription<endeff_frame_status_s>;
-
+template class __EXPORT Subscription<att_pos_vel_mocap_s>;
 } // namespace uORB
