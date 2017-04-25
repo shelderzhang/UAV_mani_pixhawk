@@ -34,7 +34,8 @@
 
 /* only use mocap information -bdai<9 Nov 2016>*/
 #define ONLY_MOCAP
-#define USING_MOCAP_VEL
+#define USING_MOCAP_VEL 1		//without fusion velocity
+// #define USING_MOCAP_VEL 2	//fusing velocity
 
 using namespace matrix;
 using namespace control;
@@ -136,7 +137,7 @@ public:
 	enum {Y_sonar_z = 0, n_y_sonar};
 	enum {Y_gps_x = 0, Y_gps_y, Y_gps_z, Y_gps_vx, Y_gps_vy, Y_gps_vz, n_y_gps};
 	enum {Y_vision_x = 0, Y_vision_y, Y_vision_z, n_y_vision};
-#ifdef USING_MOCAP_VEL
+#if USING_MOCAP_VEL == 2
 	enum {Y_mocap_x = 0, Y_mocap_y, Y_mocap_z, Y_mocap_vx, Y_mocap_vy, Y_mocap_vz, n_y_mocap};
 #else
 	enum {Y_mocap_x = 0, Y_mocap_y, Y_mocap_z, n_y_mocap};
@@ -233,7 +234,7 @@ private:
 	uORB::Subscription<manual_control_setpoint_s> _sub_manual;
 	uORB::Subscription<vehicle_gps_position_s> _sub_gps;
 	uORB::Subscription<vision_position_estimate_s> _sub_vision_pos;
-#ifdef USING_MOCAP_VEL
+#if USING_MOCAP_VEL
 	uORB::Subscription<att_pos_vel_mocap_s> _sub_mocap;
 #else
 	uORB::Subscription<att_pos_mocap_s> _sub_mocap;

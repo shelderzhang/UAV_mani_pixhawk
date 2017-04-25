@@ -6,9 +6,8 @@ extern orb_advert_t mavlink_log_pub;
 
 // required number of samples for sensor
 // to initialize
-#ifndef ONLY_MOCAP
-static const uint32_t 		REQ_MOCAP_INIT_COUNT = 10;
-#endif
+
+static const uint32_t 		REQ_MOCAP_INIT_COUNT = 2;
 static const uint32_t 		MOCAP_TIMEOUT =     500000;	// 0.5 s
 
 void BlockLocalPositionEstimator::mocapInit()
@@ -63,6 +62,11 @@ int BlockLocalPositionEstimator::mocapMeasure(Vector<float, n_y_mocap> &y)
 	y(Y_mocap_x) = _sub_mocap.get().x;
 	y(Y_mocap_y) = _sub_mocap.get().y;
 	y(Y_mocap_z) = _sub_mocap.get().z;
+#if USING_MOCAP_VEL == 2
+	y(Y_mocap_vx) = _sub_mocap.get().vx;
+	y(Y_mocap_vy) = _sub_mocap.get().vy;
+	y(Y_mocap_vz) = _sub_mocap.get().vz;
+#endif
 	_mocapStats.update(y);
 	_time_last_mocap = _sub_mocap.get().timestamp;
 	return OK;
@@ -84,6 +88,11 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	C(Y_mocap_x, X_x) = 1;
 	C(Y_mocap_y, X_y) = 1;
 	C(Y_mocap_z, X_z) = 1;
+#if USING_MOCAP_VEL == 2
+	C(Y_mocap_vx, X_vx) = 1;
+	C(Y_mocap_vy, X_vy) = 1;
+	C(Y_mocap_vz, X_vz) = 1;
+#endif
 
 	// noise matrix
 	Matrix<float, n_y_mocap, n_y_mocap> R;
@@ -93,6 +102,13 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	R(Y_mocap_x, Y_mocap_x) = mocap_p_var;
 	R(Y_mocap_y, Y_mocap_y) = mocap_p_var;
 	R(Y_mocap_z, Y_mocap_z) = mocap_p_var;
+#if USING_MOCAP_VEL == 2
+	float mocap_v_var = _mocap_v_stddev.get()* \
+			    _mocap_v_stddev.get();
+	R(Y_mocap_vx, Y_mocap_vx) = mocap_v_var;
+	R(Y_mocap_vy, Y_mocap_vy) = mocap_v_var;
+	R(Y_mocap_vz, Y_mocap_vz) = mocap_v_var;
+#endif
 
 	// residual
 
@@ -125,6 +141,12 @@ void BlockLocalPositionEstimator::mocapCorrect()
 		correctionLogic(dx);
 		_x += dx;
 		_P -= K * C * _P;
+#if USING_MOCAP_VEL == 1
+		_x(X_vx) = _sub_mocap.get().vx;
+		_x(X_vy) = _sub_mocap.get().vy;
+		_x(X_vz) = _sub_mocap.get().vz;
+		// printf("n_y_mocap is : %d\n",n_y_mocap);
+#endif
 	}
 }
 
