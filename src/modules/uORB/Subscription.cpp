@@ -66,7 +66,7 @@
 #include "topics/control_state.h"
 #include "topics/vehicle_land_detected.h"
 #include "topics/endeff_frame_status.h"
-
+#include "topics/att_pos_vel_mocap.h"
 /*using for manipulator  -bdai<8 Nov 2016>*/
 #include "topics/target_info.h"
 

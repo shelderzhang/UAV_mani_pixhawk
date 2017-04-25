@@ -84,7 +84,7 @@
 #include <uORB/topics/gps_inject_data.h>
 // By LZ
 #include <uORB/topics/target_info.h>
-
+#include <uORB/topics/att_pos_vel_mocap.h>
 #include "mavlink_ftp.h"
 
 #define PX4_EPOCH_SECS 1234567890ULL
@@ -157,7 +157,7 @@ private:
 	void handle_message_endeff_frame_status(mavlink_message_t *msg);
 	// By LZ
 	void handle_message_target_info(mavlink_message_t *msg);
-
+	void handle_message_att_pos_vel_mocap(mavlink_message_t *msg);
 	void *receive_thread(void *arg);
 
 	/**
@@ -223,6 +223,7 @@ private:
 	orb_advert_t _force_sp_pub;
 	orb_advert_t _pos_sp_triplet_pub;
 	orb_advert_t _att_pos_mocap_pub;
+	orb_advert_t _att_pos_vel_mocap_pub;
 	orb_advert_t _vision_position_pub;
 	orb_advert_t _telemetry_status_pub;
 	orb_advert_t _rc_pub;
