@@ -222,7 +222,7 @@ int coupling_force_app_thread_main(int argc, char *argv[])
      * N/A    : /dev/ttyS4
      * IO DEBUG (RX only):/dev/ttyS0
      */
-    int uart_read = uart_init("/dev/ttyS2");
+    int uart_read = uart_init("/dev/ttyS6");
 
     if(false == uart_read)return -1;
     if(false == set_uart_baudrate(uart_read,115200))

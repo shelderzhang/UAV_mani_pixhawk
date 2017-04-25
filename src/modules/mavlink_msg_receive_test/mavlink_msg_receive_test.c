@@ -201,10 +201,10 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 			{
 
 				orb_copy(ORB_ID(target_endeff_frame), target_endeff_frame_sub_fd, &data1);
-//				PX4_WARN("\n mavlink_msg_receive: target_endeff_frame \n \t Position:%8.4f %8.4f %8.4f", (double)data1.x, (double)data1.y, (double)data1.z);
-//				printf("\t Attitude:%8.4f %8.4f %8.4f\n", (double)data1.roll, (double)data1.pitch, (double)data1.yaw);
-//				printf("\t Velocity :%8.4f %8.4f %8.4f\n", (double)data1.vx, (double)data1.vy, (double)data1.vz);
-//				printf("\t enable robotic arm:%d\n", data1.arm_enable);
+				PX4_WARN("\n mavlink_msg_receive: target_endeff_frame \n \t Position:%8.4f %8.4f %8.4f", (double)data1.x, (double)data1.y, (double)data1.z);
+				printf("\t Attitude:%8.4f %8.4f %8.4f\n", (double)data1.roll, (double)data1.pitch, (double)data1.yaw);
+				printf("\t Velocity :%8.4f %8.4f %8.4f\n", (double)data1.vx, (double)data1.vy, (double)data1.vz);
+				printf("\t enable robotic arm:%d\n", data1.arm_enable);
 
 			}
 
