@@ -873,6 +873,12 @@ void BlockLocalPositionEstimator::predict()
 	_P += (_A * _P + _P * _A.transpose() +
 	       _B * _R * _B.transpose() +
 	       _Q) * getDt();
+#if USING_MOCAP_VEL==1
+	_x(X_vx) = _sub_mocap.get().vx;
+	_x(X_vy) = _sub_mocap.get().vy;
+	_x(X_vz) = _sub_mocap.get().vz;
+#endif
+
 	_xLowPass.update(_x);
 	_aglLowPass.update(agl());
 }
