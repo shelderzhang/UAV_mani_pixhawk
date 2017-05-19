@@ -393,6 +393,19 @@ void AngaccAccEKF::task_main(){
 
             _vel_updated = updated;
             if (updated) {
+
+#define TEST
+#ifdef TEST
+            static int counter = 0;
+            counter++;
+            static uint64_t pre_time_counter = timeStamp;
+            float period = (timeStamp - pre_time_counter) * 1.0e-6f;
+            if(period > 1){
+                PX4_INFO("acc_estimator update rates is: %8.4f", (double)(counter/period));
+                counter = 0;
+                pre_time_counter = timeStamp;
+            }
+#endif
                 _dt_acc = (timeStamp - _pre_acc_timeStamp) / 1.0e6f;
                 _pre_acc_timeStamp = timeStamp;
                 orb_copy(ORB_ID(att_pos_vel_mocap), _sub_vel_mocap, &_vel_mocap);
@@ -433,12 +446,14 @@ void AngaccAccEKF::task_main(){
             } else {
                 orb_publish(ORB_ID(angacc_acc), _pub_angacc_acc, &_angacc_acc);
             }
-
+// #define FAKE_MOCAP
+#ifdef FAKE_MOCAP
             if (_pub_fake_mocap == nullptr) {
                 _pub_fake_mocap = orb_advertise(ORB_ID(att_pos_mocap), &_fake_mocap);
             } else {
                 orb_publish(ORB_ID(att_pos_mocap), _pub_fake_mocap, &_fake_mocap);
             }
+#endif
             // PX4_INFO("angacc: %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f",
             //         (double)_angacc_acc.ang_acc_x,
             //         (double)_angacc_acc.ang_acc_y,
