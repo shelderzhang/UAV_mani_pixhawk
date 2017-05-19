@@ -186,6 +186,9 @@ set(config_module_list
 
 	# EKF
 	examples/ekf_att_pos_estimator
+
+	# angular acceleration estimator
+	modules/angacc_acc_ekf
 )
 
 set(config_extra_builtin_cmds
