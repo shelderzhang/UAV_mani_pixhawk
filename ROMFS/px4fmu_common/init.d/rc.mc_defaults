@@ -33,3 +33,8 @@ if param compare PWM_DISARMED 0
 then
 	param set PWM_DISARMED 900
 fi
+
+# bdai: assign rc channal 7,8,6 into manual.aux1,manual.aux2,manual.aux3
+param set RC_MAP_AUX1 7
+param set RC_MAP_AUX2 8
+param set RC_MAP_AUX3 6
