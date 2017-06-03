@@ -39,7 +39,11 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// vision 30 hz
 	_sub_vision_pos(ORB_ID(vision_position_estimate), 1000 / 30, 0, &getSubscriptions()),
 	// mocap 50 hz
+#ifdef USING_MOCAP_VEL
+	_sub_mocap(ORB_ID(att_pos_vel_mocap), 1000 / 50, 0, &getSubscriptions()),
+#else
 	_sub_mocap(ORB_ID(att_pos_mocap), 1000 / 50, 0, &getSubscriptions()),
+#endif
 	// all distance sensors, 10 hz
 	_sub_dist0(ORB_ID(distance_sensor), 1000 / 10, 0, &getSubscriptions()),
 	_sub_dist1(ORB_ID(distance_sensor), 1000 / 10, 1, &getSubscriptions()),
@@ -82,6 +86,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_vision_delay(this, "VIS_DELAY"),
 	_vision_on(this, "VIS_ON"),
 	_mocap_p_stddev(this, "VIC_P"),
+	_mocap_v_stddev(this, "VIC_V"),
 	_flow_gyro_comp(this, "FLW_GYRO_CMP"),
 	_flow_z_offset(this, "FLW_OFF_Z"),
 	_flow_scale(this, "FLW_SCALE"),
@@ -286,7 +291,8 @@ void BlockLocalPositionEstimator::update()
 	// see which updates are available
 	bool flowUpdated = _sub_flow.updated();
 	bool paramsUpdated = _sub_param_update.updated();
-	bool baroUpdated = _sub_sensor.updated();
+	// bool baroUpdated = _sub_sensor.updated();
+	bool baroUpdated = false;
 	bool gpsUpdated = _gps_on.get() && _sub_gps.updated();
 	bool visionUpdated = _vision_on.get() && _sub_vision_pos.updated();
 	bool mocapUpdated = _sub_mocap.updated();
@@ -630,18 +636,32 @@ void BlockLocalPositionEstimator::correctionLogic(Vector<float, n_x> &dx)
 	float by = dx(X_by) + _x(X_by);
 	float bz = dx(X_bz) + _x(X_bz);
 
-	if (std::abs(bx) > BIAS_MAX) {
-		bx = BIAS_MAX * bx / std::abs(bx);
+	// if (std::abs(bx) > BIAS_MAX) {
+	// 	bx = BIAS_MAX * bx / std::abs(bx);
+	// 	dx(X_bx) = bx - _x(X_bx);
+	// }
+
+	// if (std::abs(by) > BIAS_MAX) {
+	// 	by = BIAS_MAX * by / std::abs(by);
+	// 	dx(X_by) = by - _x(X_by);
+	// }
+
+	// if (std::abs(bz) > BIAS_MAX) {
+	// 	bz = BIAS_MAX * bz / std::abs(bz);
+	// 	dx(X_bz) = bz - _x(X_bz);
+	// }
+
+	if ((float)fabs(bx) > BIAS_MAX) {
+		bx = BIAS_MAX * bx / (float)fabs(bx);
 		dx(X_bx) = bx - _x(X_bx);
 	}
 
-	if (std::abs(by) > BIAS_MAX) {
-		by = BIAS_MAX * by / std::abs(by);
+	if ((float)fabs(by) > BIAS_MAX) {
+		by = BIAS_MAX * by / (float)fabs(by);
 		dx(X_by) = by - _x(X_by);
 	}
-
-	if (std::abs(bz) > BIAS_MAX) {
-		bz = BIAS_MAX * bz / std::abs(bz);
+	if ((float)fabs(bz) > BIAS_MAX) {
+		bz = BIAS_MAX * bz / (float)fabs(bz);
 		dx(X_bz) = bz - _x(X_bz);
 	}
 }
@@ -678,7 +698,7 @@ void BlockLocalPositionEstimator::detectDistanceSensors()
 			    distance_sensor_s::MAV_DISTANCE_SENSOR_LASER &&
 			    _sub_lidar == NULL) {
 				_sub_lidar = s;
-				mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] Lidar detected with ID %i", i);
+				// mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] Lidar detected with ID %i", i);
 
 			} else if (s->get().type == \
 				   distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND &&
