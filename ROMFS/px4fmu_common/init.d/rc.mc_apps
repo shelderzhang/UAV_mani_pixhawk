@@ -50,8 +50,6 @@ land_detector start multicopter
 
 angacc_acc_ekf start
 
-mavlink start -d /dev/ttyS6 -b 57600 -m custom
-#mavlink start -d /dev/ttyS6 -b 115200 -m custom
-#mavlink stream -d /dev/ttyACM0 -s ATT_POS_MOCAP -r 200
-
-#px4_daemon_app
+mavlink stop-all
+mavlink start -d /dev/ttyS1 -b 57600
+mavlink start -d /dev/ttyS2 -b 57600 -m custom

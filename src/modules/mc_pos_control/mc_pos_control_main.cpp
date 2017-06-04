@@ -96,12 +96,403 @@
 #define MANUAL_THROTTLE_MAX_MULTICOPTER	0.9f
 #define ONE_G	9.8066f
 
-#define HOVERING_MODE
-#ifdef HOVERING_MODE
-	static math::Vector<3> hovering_point(0.0f, 0.0f, -1.2f);
-#endif
+#define PI 3.14159f
 
-#define ACC_FF
+namespace Path_Tracking {
+
+struct Next {	// next desire
+	Next(math::Vector<3> pos = math::Vector<3>(0.0f,0.0f,0.0f),
+		 math::Vector<3> vel = math::Vector<3>(0.0f,0.0f,0.0f)):
+		_pos(pos),_vel(vel)
+	{
+	};
+	math::Vector<3> _pos;	//next position desire if follows shape
+	math::Vector<3> _vel;	//next velocity desire if follows shape
+};
+
+////////////////////////////////////////////// basic shape /////////////////////////////////////////////
+class Shape {
+public:
+	Shape(){_duration = 0.0f, _velocity = 0.0f;};
+	virtual ~Shape(){};
+	virtual Next next_sp(float dt) = 0;
+	float _duration;
+protected:
+	float _velocity;
+};
+
+class Point : public Shape {
+public:
+	Point(){_duration = 0.0f;};
+	Point(math::Vector<3> pos_d, float duration = 0.0f): //default hovering forever
+		_hovering_point(pos_d)
+	{
+		_duration = duration;
+	};
+	virtual Next next_sp(float dt) {
+		return Next(_hovering_point);
+	}
+private:
+	math::Vector<3> _hovering_point;
+};
+
+class Line : public Shape {
+public:
+	Line(){_velocity = 0.0f; _duration = 0.0f;};
+	Line(math::Vector<3> start, math::Vector<3> end, float velocity): //default hovering forever
+		_start(start),_end(end)
+	{
+		_velocity = velocity;
+		_duration = (_end - _start).length() / _velocity;
+	};
+	virtual Next next_sp(float dt) {
+		if (dt > _duration) dt = _duration;
+		math::Vector<3> vel_d = (_end - _start).normalized() * _velocity;
+		return Next(_start + vel_d * dt, vel_d);
+	}
+private:
+	math::Vector<3> _start,_end;
+};
+
+
+class Arc: public Shape {
+public:
+	Arc(){_angle = 0.0f; _velocity = 0.0f; _duration = 0.0f;};
+	// rotate in a fix plane. the angle between plane and horizon is the angle between vector (end -start) and horizon
+	Arc(math::Vector<3> start, math::Vector<3> end, float vel, bool clockwise, float ang = PI / 2.0f) {
+		float vertical = (clockwise == true) ? 1.0f : -1.0f; //clockwise or anticlockwise
+		math::Vector<3> left_or_right(0.0f, 0.0f, vertical);
+
+		float dist = (end - start).length()/2.0f * (1.0f/sinf(ang/2.0f) - 1.0f/tanf(ang/2.0f));
+
+		math::Vector<3> middle = (end + start) / 2.0f +
+				((end - start) % left_or_right).normalized() * dist;
+
+		*this = Arc(start, middle, end, vel);
+	};
+
+//			const Arc& operator=(const Arc& arc) {
+//				this->_angle = arc._angle;
+//				this->_center = arc._center;
+//				this->_duration = arc._duration;
+//				this->_rataxis = arc._rataxis;
+//				this->_start = arc._start;
+//				this->_velocity = arc._velocity;
+//				return *this;
+//			}
+	Arc(math::Vector<3> start, math::Vector<3> middle, math::Vector<3> end, float vel)
+	{
+		_velocity = vel;
+		// determine rotation direction
+		math::Vector<3> axis = (middle - start).normalized() % (end - middle).normalized();
+		if (axis.length() < 0.0001f) {	//if the angle is two small
+			PX4_INFO("R of Arc is too large");
+		} else {		//three plane cross one point is center of the arc
+			// x,y,z is the center of the arc
+			// A0 B0 C0 D0 constrained by three point in one common plain
+			// A1 B1 C1 D1 perpendicular bisecting plane between two points
+			// A2 B2 C2 D2 perpendicular bisecting plane between another two points
+			// |A0 B0 C0|   |x|   |D0|
+			// |A1 B1 C1| * |y| + |D1| = 0
+			// |A2 B2 C2|   |z|   |D2|
+			// reference: http://blog.csdn.net/yanmy2012/article/details/8111600
+
+			// point O A B C represent center start middle and end, X is the value
+			// AX orth. with _rataxis
+			_rataxis = axis.normalized();
+			matrix::Matrix3f P;
+			matrix::Vector3f Q;
+//					float A0,B0,C0,D0;
+			P(0,0) = _rataxis(0);
+			P(0,1) = _rataxis(1);
+			P(0,2) = _rataxis(2);
+			Q(0)    = -P(0,0)*start(0)-P(0,1)*start(1)-P(0,2)*start(2);
+
+			// contrained by R of the cicle
+//					float A1,B1,C1,D1;
+			// OA = OB = R
+			P(1,0) = 2.0f*(middle(0)-start(0));
+			P(1,1) = 2.0f*(middle(1)-start(1));
+			P(1,2) = 2.0f*(middle(2)-start(2));
+			Q(1)    = start(0)*start(0) + start(1)*start(1) + start(2)*start(2) -
+					(middle(0)*middle(0) + middle(1)*middle(1) + middle(2)*middle(2));
+
+			// contrained by R of the cicle
+//					float A2,B2,C2,D2;
+			// OB = OC = R
+			P(2,0) = 2.0f*(end(0)-start(0));
+			P(2,1) = 2.0f*(end(1)-start(1));
+			P(2,2) = 2.0f*(end(2)-start(2));
+			Q(2)    = start(0)*start(0) + start(1)*start(1) + start(2)*start(2) -
+					(end(0)*end(0) + end(1)*end(1) + end(2)*end(2));
+
+
+
+			// for(int i = 0;i<3;i++) {
+			// 		PX4_INFO("%.7f, %.7f, %.7f",
+			// 				(double)P(i,0),(double)P(i,1),(double)P(i,2));
+			// }
+
+			// matrix::Matrix3f PP = P.I();
+			// for(int i = 0;i<3;i++) {
+			// 		PX4_INFO("%8.4f, %8.4f, %8.4f, %8.4f",
+			// 				(double)PP(i,0),(double)PP(i,1),(double)PP(i,2));
+			// }
+
+			matrix::Vector3f cent = -P.I()*Q;
+			// PX4_INFO("center: %.7f,%.7f,%.7f", (double)cent(0),(double)cent(1),(double)cent(2));
+
+			// point O A B C represent center start middle and end
+			_center = math::Vector<3>(cent(0), cent(1), cent(2));
+			//vector product
+			math::Vector<3> OA_OC = (start-_center).normalized() % (end - _center).normalized();
+			math::Vector<3> AB_BC = axis;
+			//scalar product
+			float OAOC = (start-_center).normalized()*(end - _center).normalized();
+
+			float theta = acosf(OAOC);
+			_angle = (AB_BC*OA_OC > 0.0f) ? theta : 2.0f*PI - theta;
+			_start = start;
+			_duration = (start-_center).length()*theta / _velocity;
+		}
+	};
+
+	//get next desire when in Arc with rotation of ang
+	virtual Next next_sp(float dt) {
+		if (dt > _duration) dt = _duration;
+		float ang = dt / _duration * _angle;
+		math::Vector<3> start_vector = _start - _center;
+
+		matrix::AxisAnglef axis_angle(matrix::Vector3f(_rataxis(0),_rataxis(1),_rataxis(2)), ang);
+		matrix::Dcmf R(axis_angle);
+		matrix::Vector3f pos_d = R*matrix::Vector3f(start_vector(0),start_vector(1),start_vector(2));
+
+		//velocity is PI/2 ahead position
+		matrix::AxisAnglef axis_angle_v(matrix::Vector3f(_rataxis(0),_rataxis(1),_rataxis(2)), ang + PI/2.0f);
+		matrix::Dcmf R_v(axis_angle_v);
+		matrix::Vector3f vel_d = R_v*matrix::Vector3f(start_vector(0),start_vector(1),start_vector(2));
+
+		vel_d = vel_d.normalized() * _velocity;		//get velocity direction
+
+		return Next(math::Vector<3>(pos_d(0),pos_d(1),pos_d(2)) + _center,
+				math::Vector<3>(vel_d(0),vel_d(1),vel_d(2)));
+	};
+private:
+	math::Vector<3> _start, _center, _rataxis;
+	float _angle;
+};
+
+class Sin:public Shape{
+public:
+	// start and end is one period, and sin function height is same with start
+	Sin(math::Vector<3> start, math::Vector<3> end, float vel, float amp, float psi = .0f):
+		_start(start),_end(end),
+		_amplitude(amp),_psi(psi)
+	{
+		_end(2) = _start(2); // restrain the height of end same as start
+		math::Vector<3> xaxis(1.0f,.0f,.0f);
+		// calculate the angle from o'x' to ox
+		float theta = -acosf((_end - _start).normalized() * xaxis);
+
+		math::Vector<3> rataxis;
+		if (theta > 1.0e-6f) rataxis = ((_end-_start) % xaxis).normalized();
+		else rataxis = math::Vector<3> (.0f,.0f,1.0f);
+
+		matrix::AxisAnglef axis_angle(matrix::Vector3f(rataxis(0),rataxis(1),rataxis(2)), theta);
+		// PX4_INFO("axis: %8.4f %8.4f %8.4f %8.4f",(double)rataxis(0),(double)rataxis(1),(double)rataxis(2),(double)theta);
+		_R = matrix::Dcmf(axis_angle);
+		_length = (_end - _start).length();
+		_w = 2*PI / _length;
+		_velocity = vel;
+		_duration = _length / _velocity;
+	};
+	virtual Next next_sp(float dt) {
+		// x,y is in right hand coordination, _start as (0,0), _end-_start as x direction
+		if (dt > _duration) dt = _duration;
+		float x = dt / _duration * _length;
+		float y = _amplitude * sinf(_w*x + _psi);
+		float vx = _velocity;
+		float vy = _amplitude * _w * cosf(_w*x + _psi);
+
+		matrix::Vector3f pos_d = _R * matrix::Vector3f(x, y, .0f);
+		matrix::Vector3f vel_d = _R * matrix::Vector3f(vx, vy, .0f);
+
+		return Next(math::Vector<3> (pos_d(0),pos_d(1),pos_d(2)) + _start,
+				math::Vector<3>(vel_d(0), vel_d(1),vel_d(2)));
+	};
+private:
+	math::Vector<3> _start, _end;
+	float _amplitude,_length,_w,_psi;
+	matrix::Dcmf _R; // rotate from x: end-start, y: right hand to x:1,0,0 y: 0,1,011
+};
+
+////////////////////////////////////////////// path element /////////////////////////////////////////////
+class Path {
+public:
+	int get_next(float dt, Next& next) {
+
+		float tim = 0.0f;
+		int index = 0;
+		if(_num == 0) return 1;	//if they is no path element
+		for (index = 0; index < _num; index++) {
+			tim += _shapes[index]->_duration;
+			if (dt < tim) break;
+		}
+		if(index == _num) index--; // if this is the last shape and time is run out
+		next = _shapes[index]->next_sp(_shapes[index]->_duration -(tim - dt));
+
+		// PX4_INFO("%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",
+		// (double)next._pos(0),(double)next._pos(1),(double)next._pos(2),
+		// (double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
+
+		if(dt > tim) next._vel.zero(); // the end of the path
+		return 0;
+	}
+	int _num;
+//	Shape** _shapes;	//not sure what will happend
+	Shape* _shapes[20];
+};
+
+math::Vector<3> Fix_Point(0.0f, 0.0f, -1.2f);
+struct Path_Point: public Path {
+	Path_Point(){
+		_shapes[0] = new Point(Fix_Point);
+		_num = 1;
+	}
+};
+
+math::Vector<3> Line_Shape[2] = {
+		math::Vector<3>(-0.5f, -0.5f, -1.0f),
+		math::Vector<3>(0.5f, 0.5f, -1.5f)
+};
+struct Path_Line: public Path {
+	Path_Line(float vel){
+		_shapes[0] = new Line(Line_Shape[0], Line_Shape[1], vel);
+		_num = 1;
+	}
+};
+
+math::Vector<3> Arc_Shape[2] = {
+		math::Vector<3>(.0f, .0f, -1.2f),
+		math::Vector<3>(0.5f, 0.5f, -1.7f)
+};
+struct Path_Arc: public Path {
+	Path_Arc(float vel){
+		_shapes[0] = new Arc(Arc_Shape[0],Arc_Shape[1], vel, true);
+		_num = 1;
+	}
+};
+
+// sin path
+float Sin_height = -1.2f;
+math::Vector<3> Sin_Shape[2] = {
+	math::Vector<3>(0.0f,0.0f,Sin_height),
+	math::Vector<3>(-2.0f,-2.0f,Sin_height)};
+
+struct Path_Sin : public Path{
+	Path_Sin(float vel){
+		_shapes[0] = new Sin(Sin_Shape[0],Sin_Shape[1], vel, 0.5f, PI/4.0f);
+		_num = 1;
+	}
+};
+
+
+//	the path of _|_
+float L_height = -1.2f;
+math::Vector<3> L_Shape[7] = {
+	math::Vector<3>(2.0f,2.0f,L_height),
+	math::Vector<3>(2.0f,1.0f,L_height),
+	math::Vector<3>(1.0f,0.0f,L_height),
+	math::Vector<3>(-2.0f,0.0f,L_height),
+	math::Vector<3>(1.0f,0.0f,L_height),
+	math::Vector<3>(2.0f,-1.0f,L_height),
+	math::Vector<3>(2.0f,-2.0f,L_height)};
+
+struct Path_L : public Path{
+	Path_L(float vel){
+		_shapes[0] = new Line(L_Shape[0],L_Shape[1], vel);
+		_shapes[1] = new Arc(L_Shape[1],L_Shape[2], vel, false);
+		_shapes[2] = new Line(L_Shape[2],L_Shape[3], vel);
+		_shapes[3] = new Point(L_Shape[3], 5.0f);
+		_shapes[4] = new Line(L_Shape[3],L_Shape[4], vel);
+		_shapes[5] = new Arc(L_Shape[4],L_Shape[5], vel, false);
+		_shapes[6] = new Line(L_Shape[5],L_Shape[6], vel);
+		_num = 7;
+	}
+};
+
+//	the path of S
+float S_height = -1.2f;
+math::Vector<3> S_Shape[6] = {
+	math::Vector<3>(-2.0f,3.0f,S_height),
+	math::Vector<3>(-2.0f,-2.0f,S_height),
+	math::Vector<3>(0.0f,-2.0f,S_height),
+	math::Vector<3>(0.0f,2.0f,S_height),
+	math::Vector<3>(2.0f,2.0f,S_height),
+	math::Vector<3>(2.0f,-3.0f,S_height)};
+
+struct Path_S:public Path{
+	Path_S(float vel){
+		_shapes[0] = new Line(S_Shape[0],S_Shape[1], vel);
+		_shapes[1] = new Arc(S_Shape[1],S_Shape[2], vel, true, PI);
+		_shapes[2] = new Line(S_Shape[2],S_Shape[3], vel);
+		_shapes[3] = new Arc(S_Shape[3],S_Shape[4], vel, false, PI);
+		_shapes[4] = new Line(S_Shape[4],S_Shape[5], vel);
+		_num = 5;
+	}
+};
+
+float SinD_height = -1.2f;
+math::Vector<3> SinD_Shape[3] = {
+	math::Vector<3>(2.0f,0.0f,SinD_height),
+	math::Vector<3>(-2.0f,0.0f,SinD_height),
+	math::Vector<3>(2.0f,0.0f,SinD_height)};
+
+struct Path_SinD : public Path{
+	Path_SinD(float vel){
+		_shapes[0] = new Sin(SinD_Shape[0],SinD_Shape[1], vel, 0.5f);
+		_shapes[1] = new Point(SinD_Shape[1], 5.0f);
+		_shapes[2] = new Sin(SinD_Shape[1],SinD_Shape[2], vel, 1.0f);
+		_num = 3;
+	}
+};
+
+
+enum shapes {
+	POINT,	//fix position setpoint
+	LINE,	//line between two point
+	ARC,	// arc shape
+	SIN,
+	SHAPE_L,	//__|__ shape like L
+	SHAPE_S,
+	SHAPE_Sin,
+};
+
+static Path* get_path(shapes shape, float vel = .0f){
+	Path* path;
+	switch(shape) {
+	case POINT: path = new Path_Point(); break;
+	case LINE:	path = new Path_Line(vel); break;
+	case ARC:	path = new Path_Arc(vel); break;
+	case SIN:	path = new Path_Sin(vel); break;
+	case SHAPE_L:	path = new Path_L(vel); break;
+	case SHAPE_S:	path = new Path_S(vel); break;
+	case SHAPE_Sin:	path = new Path_SinD(vel); break;
+	default:path = nullptr; break;
+	}
+	return path;
+};
+}
+
+enum status {
+	DISABLE = 0,	//path is disable
+	PAUSE,			//hold in the first point of the path
+	FOLLOWING			//start following the path
+};
+static status statu = DISABLE;
+static bool manual_loss = false;
+
+static Path_Tracking::Next next;
 
 /**
  * Multicopter position control app start / stop handling function
@@ -776,8 +1167,13 @@ MulticopterPositionControl::poll_subscriptions()
 
 	orb_check(_manual_sub, &updated);
 
+	hrt_abstime now = hrt_absolute_time();
+	static hrt_abstime manual_time = now;
 	if (updated) {
+		manual_time = now; manual_loss = false;
 		orb_copy(ORB_ID(manual_control_setpoint), _manual_sub, &_manual);
+	} else {
+		if(now - manual_time > 5*1e5) manual_loss = true;
 	}
 
 	orb_check(_arming_sub, &updated);
@@ -950,6 +1346,7 @@ MulticopterPositionControl::limit_pos_sp_offset()
 	}
 }
 
+
 void
 MulticopterPositionControl::control_manual(float dt)
 {
@@ -964,6 +1361,43 @@ MulticopterPositionControl::control_manual(float dt)
 		}
 	}
 
+	if (_control_mode.flag_control_altitude_enabled &&_control_mode.flag_control_position_enabled) {
+
+		hrt_abstime now = hrt_absolute_time();
+		static hrt_abstime last_pause_stamp = now;
+
+		static float path_time = 0.0f;
+		static float path_over_time = 0.0f;
+		if (_manual.aux3 < -0.5f) {
+			path_over_time = path_time = 0.0f;
+			last_pause_stamp = now;
+			statu = DISABLE;
+		}else if (_manual.aux3 < 0.5f || manual_loss){
+			path_over_time = path_time;
+			last_pause_stamp = now;
+			statu = PAUSE;
+		}else {
+			statu = FOLLOWING;
+			path_time = path_over_time + (now - last_pause_stamp)*1.0e-6f;
+		}
+
+		if (statu != DISABLE) {
+			// get the path at the first time
+//			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::POINT);
+			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::SHAPE_Sin, 0.5f);
+
+			int ret = 0;
+			if (statu == FOLLOWING) {
+				ret = path->get_next(path_time, next);
+			}
+			if (statu == PAUSE) next._vel.zero();
+			_pos_sp = next._pos;
+
+			if(ret == 0) return;
+		}
+	}
+
+	statu = DISABLE; //no path
 	math::Vector<3> req_vel_sp; // X,Y in local frame and Z in global (D), in [-1,1] normalized range
 	req_vel_sp.zero();
 
@@ -1065,12 +1499,6 @@ MulticopterPositionControl::control_manual(float dt)
 			_vel_sp(2) = req_vel_sp_scaled(2);
 		}
 	}
-
-#ifdef HOVERING_MODE
-	if (_control_mode.flag_control_position_enabled && _control_mode.flag_control_altitude_enabled) {
-		_pos_sp = hovering_point;
-	}
-#endif
 }
 
 void
@@ -1652,6 +2080,11 @@ MulticopterPositionControl::task_main()
 					_vel_sp(0) = pos_err(0) * _params.pos_p(0) + _pos_err_d(0) * _params.pos_d(0) +  pos_err_i(0);
 					_vel_sp(1) = pos_err(1) * _params.pos_p(1) + _pos_err_d(1) * _params.pos_d(1) +  pos_err_i(1);
 					// PX4_INFO("XY PID: %4.4f,%4.4f,%4.4f",(double)_params.pos_p(0),(double)_params.pos_i(0),(double)_params.pos_d(0));
+
+					if (statu != DISABLE){
+						_vel_sp(0) += next._vel(0);
+						_vel_sp(1) += next._vel(1);
+					}
 				}
 
 				// guard against any bad velocity values
@@ -1698,6 +2131,10 @@ MulticopterPositionControl::task_main()
 					// _vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
 					_vel_sp(2) = pos_err(2) * _params.pos_p(2) + _pos_err_d(2) * _params.pos_d(2) + pos_err_i(2);
 					// PX4_INFO("Z PID: %4.4f,%4.4f,%4.4f",(double)_params.pos_p(2),(double)_params.pos_i(2),(double)_params.pos_d(2));
+
+					if (statu != DISABLE){
+						_vel_sp(2) += next._vel(2);
+					}
 				}
 
 				/* make sure velocity setpoint is saturated in xy*/
