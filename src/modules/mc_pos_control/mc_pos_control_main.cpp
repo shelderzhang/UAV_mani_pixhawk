@@ -341,10 +341,6 @@ public:
 		if(index == _num) index--; // if this is the last shape and time is run out
 		next = _shapes[index]->next_sp(_shapes[index]->_duration -(tim - dt));
 
-		// PX4_INFO("%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",
-		// (double)next._pos(0),(double)next._pos(1),(double)next._pos(2),
-		// (double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
-
 		if(dt > tim) next._vel.zero(); // the end of the path
 		return 0;
 	}
@@ -362,8 +358,8 @@ struct Path_Point: public Path {
 };
 
 math::Vector<3> Line_Shape[2] = {
-		math::Vector<3>(-0.5f, -0.5f, -1.0f),
-		math::Vector<3>(0.5f, 0.5f, -1.5f)
+		math::Vector<3>(-2.0f, 2.0f, -1.0f),
+		math::Vector<3>(2.0f, -2.0f, -1.0f)
 };
 struct Path_Line: public Path {
 	Path_Line(float vel){
@@ -424,12 +420,12 @@ struct Path_L : public Path{
 //	the path of S
 float S_height = -1.2f;
 math::Vector<3> S_Shape[6] = {
-	math::Vector<3>(-2.0f,3.0f,S_height),
-	math::Vector<3>(-2.0f,-2.0f,S_height),
+	math::Vector<3>(-1.0f,2.5f,S_height),
+	math::Vector<3>(-1.0f,-2.0f,S_height),
 	math::Vector<3>(0.0f,-2.0f,S_height),
 	math::Vector<3>(0.0f,2.0f,S_height),
-	math::Vector<3>(2.0f,2.0f,S_height),
-	math::Vector<3>(2.0f,-3.0f,S_height)};
+	math::Vector<3>(1.0f,2.0f,S_height),
+	math::Vector<3>(1.0f,-2.5f,S_height)};
 
 struct Path_S:public Path{
 	Path_S(float vel){
@@ -450,9 +446,9 @@ math::Vector<3> SinD_Shape[3] = {
 
 struct Path_SinD : public Path{
 	Path_SinD(float vel){
-		_shapes[0] = new Sin(SinD_Shape[0],SinD_Shape[1], vel, 0.5f);
+		_shapes[0] = new Sin(SinD_Shape[0],SinD_Shape[1], vel, 0.2f);
 		_shapes[1] = new Point(SinD_Shape[1], 5.0f);
-		_shapes[2] = new Sin(SinD_Shape[1],SinD_Shape[2], vel, 1.0f);
+		_shapes[2] = new Sin(SinD_Shape[1],SinD_Shape[2], vel, 0.5f);
 		_num = 3;
 	}
 };
@@ -1368,6 +1364,8 @@ MulticopterPositionControl::control_manual(float dt)
 
 		static float path_time = 0.0f;
 		static float path_over_time = 0.0f;
+		static status last_statu = statu;
+		last_statu = statu;
 		if (_manual.aux3 < -0.5f) {
 			path_over_time = path_time = 0.0f;
 			last_pause_stamp = now;
@@ -1384,16 +1382,23 @@ MulticopterPositionControl::control_manual(float dt)
 		if (statu != DISABLE) {
 			// get the path at the first time
 //			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::POINT);
-			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::SHAPE_Sin, 0.5f);
+			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::SHAPE_L, 0.5f);
 
-			int ret = 0;
-			if (statu == FOLLOWING) {
-				ret = path->get_next(path_time, next);
-			}
+			int ret = path->get_next(path_time, next);
 			if (statu == PAUSE) next._vel.zero();
 			_pos_sp = next._pos;
 
+			// PX4_INFO("%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",
+			// (double)next._pos(0),(double)next._pos(1),(double)next._pos(2),
+			// (double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
+			
 			if(ret == 0) return;
+		}
+
+		// if switch back to disable
+		if (last_statu != DISABLE) {
+			_reset_pos_sp = true;
+			_reset_alt_sp = true;
 		}
 	}
 

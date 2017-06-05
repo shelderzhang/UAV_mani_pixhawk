@@ -41,7 +41,7 @@ fi
 
 mc_att_control start
 
-mc_pos_control start
+#mc_pos_control start
 
 #
 # Start Land Detector
@@ -53,3 +53,4 @@ angacc_acc_ekf start
 mavlink stop-all
 mavlink start -d /dev/ttyS1 -b 57600
 mavlink start -d /dev/ttyS2 -b 57600 -m custom
+#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
