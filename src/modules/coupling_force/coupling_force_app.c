@@ -231,7 +231,7 @@ int coupling_force_app_thread_main(int argc, char *argv[])
         return -1;
     }
 
-    sleep(6);
+    sleep(10);
     sprintf(out_buffer,"AT+SMPR=200\r\n");
     usleep(100);
     write(uart_read,&out_buffer,strlen(out_buffer));
