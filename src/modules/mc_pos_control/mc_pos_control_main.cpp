@@ -95,6 +95,7 @@
 #define MIN_DIST		0.01f
 #define MANUAL_THROTTLE_MAX_MULTICOPTER	0.9f
 #define ONE_G	9.8066f
+#define ACC_FF
 
 #define PI 3.14159f
 
@@ -349,7 +350,7 @@ public:
 	Shape* _shapes[20];
 };
 
-math::Vector<3> Fix_Point(0.0f, 0.0f, -1.2f);
+math::Vector<3> Fix_Point(-2.0f, 0.0f, -1.2f);
 struct Path_Point: public Path {
 	Path_Point(){
 		_shapes[0] = new Point(Fix_Point);
@@ -1381,16 +1382,16 @@ MulticopterPositionControl::control_manual(float dt)
 
 		if (statu != DISABLE) {
 			// get the path at the first time
-//			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::POINT);
-			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::SHAPE_L, 0.5f);
+			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::POINT);
+			// static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::SHAPE_L, 0.5f);
 
 			int ret = path->get_next(path_time, next);
 			if (statu == PAUSE) next._vel.zero();
 			_pos_sp = next._pos;
 
-			// PX4_INFO("%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",
-			// (double)next._pos(0),(double)next._pos(1),(double)next._pos(2),
-			// (double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
+			PX4_INFO("%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",
+				(double)_pos_sp(0),(double)_pos_sp(1),(double)_pos_sp(2),
+				(double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
 			
 			if(ret == 0) return;
 		}
