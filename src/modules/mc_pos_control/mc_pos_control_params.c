@@ -570,3 +570,19 @@ PARAM_DEFINE_FLOAT(MPC_FF_MAX_H, 0.2f);
 * @group Multicopter Position Control
 */
 PARAM_DEFINE_FLOAT(MPC_FF_MAX_V, 0.1f);
+
+
+/**
+ * Select path
+ *
+ * Select which path to track
+ *
+ * @value 0 POINT
+ * @value 1 LINES
+ * @value 2 SINS
+ * @value 3 CICLES
+ * @value 4 SHAPE_W
+ * @value 5 SHAPE_S
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_INT32(MPC_PATH_TYPE, 0);
