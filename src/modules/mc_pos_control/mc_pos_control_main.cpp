@@ -112,19 +112,78 @@ struct Next {	// next desire
 };
 
 ////////////////////////////////////////////// basic shape /////////////////////////////////////////////
+
 class Shape {
 public:
-	Shape(){_duration = 0.0f, _velocity = 0.0f;};
+	Shape(){_duration = 0.0f;};
 	virtual ~Shape(){};
 	virtual Next next_sp(float dt) = 0;
 	float _duration;
-protected:
-	float _velocity;
+};
+
+class Scale { // constant velocity and accelrate movement
+public:
+	// len, startvel middlvel endvel should all be positive
+	Scale() {_iserrorstay = true;};
+	Scale(float len,float middvel, float startvel, float endvel,
+		float accdura1, float accdura2):
+			_dura(.0f),_len(len),
+			_middvel(middvel), _startvel(startvel), _endvel(endvel),
+			_accdura1(accdura1),_accdura2(accdura2),
+			_iserrorstay(false)
+	{
+		if (len < 0 || startvel < 0 || middvel < 0 || endvel < 0 || accdura1 < 0 || accdura2 < 0) {
+			_iserrorstay = true; return;}
+
+		float len1 = (_startvel + _middvel) * 0.5f * _accdura1;
+		float len2 = (_middvel + _endvel) * 0.5f * _accdura2;
+		if(len1 + len2 > len){
+			_iserrorstay = true;
+		} else if (fabsf(len1 + len2 - len) < FLT_EPSILON) {
+			_constdura = 0.0f;
+			if (len < FLT_EPSILON) _iserrorstay = true;	// keep stay
+		} else{
+			if (fabsf(_middvel) < FLT_EPSILON) _iserrorstay = true; //if the middle vel is 0
+			else _constdura = (len - len1 - len2) / _middvel;
+		}
+		_dura = _accdura1 + _constdura + _accdura2;
+
+	};
+
+	int get_value(float dt, float& pos, float& vel) {
+		if (_iserrorstay) {
+			pos = vel = 0.0f;
+			return 1;
+		} else {
+			if (dt < 0.0f) dt = 0.0f;
+			if (dt > _dura) dt = _dura;
+
+			if (dt < _accdura1) {
+				vel = _startvel + dt / _accdura1 * (_middvel - _startvel);
+				pos =  (_startvel + vel) / 2.0f * dt;
+			} else if (dt - _accdura1 - _constdura > FLT_EPSILON) {
+				vel = _middvel + (_endvel - _middvel) * (dt - _accdura1 - _constdura) / _accdura2;
+				pos = (_startvel + _middvel) / 2.0f * _accdura1 + _middvel * _constdura +
+						(_middvel + _endvel) / 2.0f * (dt - _accdura1 - _constdura);
+			} else {
+				vel = _middvel;
+				pos = (_startvel + _middvel) / 2.0f * _accdura1 + vel * (dt - _accdura1);
+			}
+		}
+		return 0;
+	};
+
+	float _dura;
+//private:
+	float _len;
+	float _middvel, _startvel, _endvel;	// start velocity, constantly movement velocity and end velocity
+	float _accdura1, _accdura2, _constdura;// accelerate duration at phase 1, contantly movement duration
+	bool _iserrorstay;	// if there if error or stay
 };
 
 class Point : public Shape {
 public:
-	Point(){_duration = 0.0f;};
+	Point(){};
 	Point(math::Vector<3> pos_d, float duration = 0.0f): //default hovering forever
 		_hovering_point(pos_d)
 	{
@@ -139,29 +198,34 @@ private:
 
 class Line : public Shape {
 public:
-	Line(){_velocity = 0.0f; _duration = 0.0f;};
-	Line(math::Vector<3> start, math::Vector<3> end, float velocity): //default hovering forever
+	Line(math::Vector<3> start, math::Vector<3> end, float middvel, float accdura1 = .0f, float accdura2 = .0f,
+			float startvel = .0f ,float endvel = .0f): //default hovering forever
+		_scale((end-start).length(), middvel,startvel, endvel, accdura1, accdura2),
 		_start(start),_end(end)
 	{
-		_velocity = velocity;
-		_duration = (_end - _start).length() / _velocity;
+		_duration = _scale._dura;
 	};
 	virtual Next next_sp(float dt) {
-		if (dt > _duration) dt = _duration;
-		math::Vector<3> vel_d = (_end - _start).normalized() * _velocity;
-		return Next(_start + vel_d * dt, vel_d);
+		static float pos_norm, vel_norm;
+		_scale.get_value(dt, pos_norm, vel_norm);
+
+		math::Vector<3> vel_d = (_end - _start).normalized() * vel_norm;
+		return Next(_start +  (_end - _start).normalized() * pos_norm, vel_d);
 	}
 private:
+	Scale _scale;
 	math::Vector<3> _start,_end;
 };
 
-
 class Arc: public Shape {
 public:
-	Arc(){_angle = 0.0f; _velocity = 0.0f; _duration = 0.0f;};
+	Arc(){_angle = 0.0f; _duration = 0.0f;};
 	// rotate in a fix plane. the angle between plane and horizon is the angle between vector (end -start) and horizon
 	
-	Arc(math::Vector<3> start, math::Vector<3> end, float vel, bool clockwise, float ang = PI / 2.0f) {
+	Arc(math::Vector<3> start, math::Vector<3> end, bool clockwise, float ang,
+			float middvel,float accdura1 = .0f, float accdura2 = .0f,
+			float startvel = .0f, float endvel = .0f)
+	{
 		
 		float vertical = (clockwise == true) ? 1.0f : -1.0f; //clockwise or anticlockwise
 		math::Vector<3> left_or_right(0.0f, 0.0f, vertical);
@@ -171,14 +235,11 @@ public:
 		//ang = 2Pi mean there is an cicle. and end- start is the D of the cicle
 		if(iscicle) {
 			_angle = ang;
-			_velocity = vel;
 			_start = start;
 			_center = (end + start) / 2.0f;
-			_duration = (_start - _center).length() * ang / _velocity;
 
-			ang = PI;
+			ang = PI; // to get the rotation axis
 		}
-
 		float dist = (end - start).length()/2.0f * (1.0f/sinf(ang/2.0f) - 1.0f/tanf(ang/2.0f));
 
 		math::Vector<3> middle = (end + start) / 2.0f +
@@ -186,24 +247,18 @@ public:
 
 		if (iscicle) {
 			_rataxis = (start - _center) % (middle-_center).normalized();
-
+			float radius = (_start - _center).length();
+			_scale = Scale(_angle, middvel/radius, startvel/radius, endvel/radius, accdura1, accdura2);
+			_duration = _scale._dura;
 		} else {
-			*this = Arc(start, middle, end, vel);
+			*this = Arc(start, middle, end, middvel, accdura1, accdura2, startvel, endvel);
 		}
 	};
 
-//			const Arc& operator=(const Arc& arc) {
-//				this->_angle = arc._angle;
-//				this->_center = arc._center;
-//				this->_duration = arc._duration;
-//				this->_rataxis = arc._rataxis;
-//				this->_start = arc._start;
-//				this->_velocity = arc._velocity;
-//				return *this;
-//			}
-	Arc(math::Vector<3> start, math::Vector<3> middle, math::Vector<3> end, float vel)
+	Arc(math::Vector<3> start, math::Vector<3> middle, math::Vector<3> end,
+			float middvel, float accdura1 = .0f, float accdura2 = .0f,
+			float startvel = .0f, float endvel = .0f)
 	{
-		_velocity = vel;
 		// determine rotation direction
 		math::Vector<3> axis = (middle - start).normalized() % (end - middle).normalized();
 		if (axis.length() < 0.0001f) {	//if the angle is two small
@@ -274,14 +329,18 @@ public:
 			float theta = acosf(OAOC);
 			_angle = (AB_BC*OA_OC > 0.0f) ? theta : 2.0f*PI - theta;
 			_start = start;
-			_duration = (_start-_center).length()*theta / _velocity;
+			float radius = (_start - _center).length();
+			_scale = Scale(_angle, middvel/radius, startvel/radius, endvel/radius, accdura1, accdura2);
+			_duration = _scale._dura;
 		}
 	};
 
 	//get next desire when in Arc with rotation of ang
 	virtual Next next_sp(float dt) {
 		if (dt > _duration) dt = _duration;
-		float ang = dt / _duration * _angle;
+		float ang, omega;
+		_scale.get_value(dt, ang, omega);
+
 		math::Vector<3> start_vector = _start - _center;
 
 		matrix::AxisAnglef axis_angle(matrix::Vector3f(_rataxis(0),_rataxis(1),_rataxis(2)), ang);
@@ -293,12 +352,13 @@ public:
 		matrix::Dcmf R_v(axis_angle_v);
 		matrix::Vector3f vel_d = R_v*matrix::Vector3f(start_vector(0),start_vector(1),start_vector(2));
 
-		vel_d = vel_d.normalized() * _velocity;		//get velocity direction
+		vel_d = vel_d.normalized() * omega * (_start -  _center).length();		//get velocity
 
 		return Next(math::Vector<3>(pos_d(0),pos_d(1),pos_d(2)) + _center,
 				math::Vector<3>(vel_d(0),vel_d(1),vel_d(2)));
 	};
 private:
+	Scale _scale;
 	math::Vector<3> _start, _center, _rataxis;
 	float _angle;
 };
@@ -306,34 +366,33 @@ private:
 class Sin:public Shape{
 public:
 	// start and end is one period, and sin function height is same with start
-	Sin(math::Vector<3> start, math::Vector<3> end, float vel, float amp, float psi = .0f):
-		_start(start),_end(end),
-		_amplitude(amp),_psi(psi)
+	Sin(math::Vector<3> start, math::Vector<3> end, float amp, float phi,
+			float middvel, float accdura1 = .0f, float accdura2 = .0f,
+			 float startvel = .0f, float endvel = .0f):
+		_scale((end-start).length(), middvel,startvel, endvel, accdura1, accdura2),
+		_start(start), _end(end),
+		_amplitude(amp),_phi(phi)
 	{
-		_end(2) = _start(2); // restrain the height of end same as start
-		math::Vector<3> xaxis(1.0f,.0f,.0f);
-		// calculate the angle from o'x' to ox
-		float theta = -acosf((_end - _start).normalized() * xaxis);
+		float pitch = asinf((_end - _start).normalized()(2));
 
-		math::Vector<3> rataxis;
-		if (theta > 1.0e-6f) rataxis = ((_end-_start) % xaxis).normalized();
-		else rataxis = math::Vector<3> (.0f,.0f,1.0f);
+		math::Vector<3> proj = math::Vector<3>(_end(0) - _start(0), _end(1) - _start(1), 0.0f);
+		float yaw = acosf(proj.normalized()(0));
+		if (proj(1) < 0.0f) yaw = -yaw;
+		matrix::Eulerf eula(0.0f, pitch, yaw);
 
-		matrix::AxisAnglef axis_angle(matrix::Vector3f(rataxis(0),rataxis(1),rataxis(2)), theta);
-		// PX4_INFO("axis: %8.4f %8.4f %8.4f %8.4f",(double)rataxis(0),(double)rataxis(1),(double)rataxis(2),(double)theta);
-		_R = matrix::Dcmf(axis_angle);
+		_R = matrix::Dcmf(eula);
 		_length = (_end - _start).length();
 		_w = 2*PI / _length;
-		_velocity = vel;
-		_duration = _length / _velocity;
+		_duration = _scale._dura;
 	};
 	virtual Next next_sp(float dt) {
 		// x,y is in right hand coordination, _start as (0,0), _end-_start as x direction
 		if (dt > _duration) dt = _duration;
-		float x = dt / _duration * _length;
-		float y = _amplitude * sinf(_w*x + _psi);
-		float vx = _velocity;
-		float vy = _amplitude * _w * cosf(_w*x + _psi);
+		float x, vx;
+		_scale.get_value(dt, x, vx);
+
+		float y = _amplitude * sinf(_w*x + _phi);
+		float vy = _amplitude * _w * cosf(_w*x + _phi);
 
 		matrix::Vector3f pos_d = _R * matrix::Vector3f(x, y, .0f);
 		matrix::Vector3f vel_d = _R * matrix::Vector3f(vx, vy, .0f);
@@ -342,8 +401,9 @@ public:
 				math::Vector<3>(vel_d(0), vel_d(1),vel_d(2)));
 	};
 private:
+	Scale _scale;
 	math::Vector<3> _start, _end;
-	float _amplitude,_length,_w,_psi;
+	float _amplitude,_length,_w,_phi;
 	matrix::Dcmf _R; // rotate from x: end-start, y: right hand to x:1,0,0 y: 0,1,011
 };
 
@@ -381,76 +441,62 @@ struct Path_Point: public Path {
 };
 
 math::Vector<3> Lines_Points[2] = {
-	math::Vector<3>(3.0f, 0.0f, plane_height),
+	math::Vector<3>(2.2f, 0.0f, plane_height),
 	math::Vector<3>(-2.0f, 0.0f, plane_height)};
 struct Path_Lines: public Path {
 	Path_Lines(float vel) {
-		_shapes[0] = new Line(Lines_Points[0],Lines_Points[1],vel);
+		_shapes[0] = new Line(Lines_Points[0],Lines_Points[1],vel,2.0f,2.0f);
 		_shapes[1] = new Point(Lines_Points[1], 5.0f);
-		_shapes[2] = new Line(Lines_Points[1],Lines_Points[0],vel);
+		_shapes[2] = new Line(Lines_Points[1],Lines_Points[0],vel,2.0f,2.0f);
 		_num = 3;
 	}
 };
 
-math::Vector<3> Sins_Points[2] = {
+float amp = 1.5f;
+math::Vector<3> Sins_Points[6] = {
+	math::Vector<3>(2.5f, amp, plane_height),
+	math::Vector<3>(2.0f, amp, plane_height),
 	math::Vector<3>(2.0f, 0.0f, plane_height),
-	math::Vector<3>(-2.0f, 0.0f, plane_height)};
+	math::Vector<3>(-1.5f, 0.0f, plane_height),
+	math::Vector<3>(-1.5f, amp, plane_height),
+	math::Vector<3>(-2.0f, amp, plane_height)};
 struct Path_Sins: public Path {
 	Path_Sins(float vel) {
-		_shapes[0] = new Sin(Sins_Points[0],Sins_Points[1],vel, 0.5f);
-		_shapes[1] = new Point(Sins_Points[1], 5.0f);
-		_shapes[2] = new Sin(Sins_Points[1],Sins_Points[0],vel, 0.5f);
-		_num = 3;
+		_shapes[0] = new Line(Sins_Points[0],Sins_Points[1], vel, 2.0f, 0.0f);
+		_shapes[1] = new Sin(Sins_Points[2],Sins_Points[3], amp, -PI/2.0f, vel);
+		_shapes[2] = new Line(Sins_Points[4],Sins_Points[5], vel, .0f, 2.0f);
+		_shapes[3] = new Point(Sins_Points[5], 5.0f);
+		_shapes[4] = new Line(Sins_Points[5],Sins_Points[4], vel, 2.0f, 0.0f);
+		_shapes[5] = new Sin(Sins_Points[3],Sins_Points[2], amp, PI/2.0f, vel);
+		_shapes[6] = new Line(Sins_Points[1],Sins_Points[0], vel, 0.0f, 2.0f);
+		_num = 7;
 	}
 };
 
-math::Vector<3> Cicles_Shape[10] = {
+math::Vector<3> Cicles_Shape[8] = {
 	math::Vector<3>(2.0f,-2.0f,plane_height),
 	math::Vector<3>(2.0f,0.0f,plane_height),
-	math::Vector<3>(1.0f,1.0f,plane_height),
-	math::Vector<3>(1.0f,-1.0f,plane_height),
+	math::Vector<3>(0.0f,0.0f,plane_height),
 	math::Vector<3>(0.0f,1.0f,plane_height),
 	math::Vector<3>(0.0f,-1.0f,plane_height),
 	math::Vector<3>(-1.0f,1.0f,plane_height),
 	math::Vector<3>(-1.0f,-1.0f,plane_height),
-	math::Vector<3>(-2.0f,-0.0f,plane_height),
 	math::Vector<3>(-2.0f,-2.0f,plane_height),
 };
 
 struct Path_Cicles : public Path{
 	Path_Cicles(float vel){
-		_shapes[0] = new Line(Cicles_Shape[0],Cicles_Shape[1], vel);
-		_shapes[1] = new Arc(Cicles_Shape[1],Cicles_Shape[2], vel, true, PI/2.0f);
-		_shapes[2] = new Arc(Cicles_Shape[2],Cicles_Shape[3], vel, true, PI*2.0f);
-		_shapes[3] = new Line(Cicles_Shape[2],Cicles_Shape[4], vel);
-		_shapes[4] = new Arc(Cicles_Shape[4],Cicles_Shape[5], vel, true, PI*2.0f);
-		_shapes[5] = new Line(Cicles_Shape[4],Cicles_Shape[6], vel);
-		_shapes[6] = new Arc(Cicles_Shape[6],Cicles_Shape[7], vel, true, PI*2.0f);
-		_shapes[7] = new Arc(Cicles_Shape[6],Cicles_Shape[8], vel, true, PI/2.0f);
-		_shapes[8] = new Line(Cicles_Shape[8],Cicles_Shape[9], vel);
+		_shapes[0] = new Line(Cicles_Shape[0],Cicles_Shape[1], vel, 2.0f, 0.0f);
+		_shapes[1] = new Arc(Cicles_Shape[1],Cicles_Shape[2], true, PI*5.0f/2.0f, vel);
+		Next next = _shapes[1]->next_sp(_shapes[1]->_duration);
+		_shapes[3] = new Line(next._pos,Cicles_Shape[3], vel);
+		_shapes[4] = new Arc(Cicles_Shape[3],Cicles_Shape[4], true, PI*2.0f, vel);
+		next = _shapes[4]->next_sp(_shapes[4]->_duration);
+		_shapes[5] = new Line(next._pos,Cicles_Shape[5], vel);
+		_shapes[6] = new Arc(Cicles_Shape[5],Cicles_Shape[6], true, PI*5.0f/2.0f, vel);
+		next = _shapes[6]->next_sp(_shapes[6]->_duration);
+		_shapes[8] = new Line(next._pos,Cicles_Shape[7], vel, 0.0f, 2.0f);
 		_num = 9;
-	}
-};
-
-// shape of W
-math::Vector<3> W_Shape[5] = {
-	math::Vector<3>(2.5f,-2.0f,plane_height),
-	math::Vector<3>(1.0f,1.0f,plane_height),
-	math::Vector<3>(0.0f,-1.0f,plane_height),
-	math::Vector<3>(-1.0f,1.0f,plane_height),
-	math::Vector<3>(-2.5f,-2.0f,plane_height),
-};
-
-struct Path_Shape_W : public Path{
-	Path_Shape_W(float vel){
-		_shapes[0] = new Line(W_Shape[0],W_Shape[1], vel);
-		_shapes[1] = new Point(W_Shape[1], 3.0f);
-		_shapes[2] = new Line(W_Shape[1],W_Shape[2], vel);
-		_shapes[3] = new Point(W_Shape[2], 3.0f);
-		_shapes[4] = new Line(W_Shape[2],W_Shape[3], vel);
-		_shapes[5] = new Point(W_Shape[3], 3.0f);
-		_shapes[6] = new Line(W_Shape[3],W_Shape[4], vel);
-		_num = 7;
 	}
 };
 
@@ -470,15 +516,15 @@ math::Vector<3> S_Shape[10] = {
 
 struct Path_Shape_S:public Path{
 	Path_Shape_S(float vel){
-		_shapes[0] = new Line(S_Shape[0],S_Shape[1], vel);
-		_shapes[1] = new Arc(S_Shape[1],S_Shape[2], vel, true, PI);
+		_shapes[0] = new Line(S_Shape[0],S_Shape[1], vel, 2.0f, .0f);
+		_shapes[1] = new Arc(S_Shape[1],S_Shape[2], true, PI, vel);
 		_shapes[2] = new Line(S_Shape[2],S_Shape[3], vel);
-		_shapes[3] = new Arc(S_Shape[3],S_Shape[4], vel, false, PI);
+		_shapes[3] = new Arc(S_Shape[3],S_Shape[4], false, PI, vel);
 		_shapes[4] = new Line(S_Shape[4],S_Shape[5], vel);
-		_shapes[5] = new Arc(S_Shape[5],S_Shape[6], vel, true, PI);
+		_shapes[5] = new Arc(S_Shape[5],S_Shape[6], true, PI, vel);
 		_shapes[6] = new Line(S_Shape[6],S_Shape[7], vel);
-		_shapes[7] = new Arc(S_Shape[7],S_Shape[8], vel, false, PI);
-		_shapes[8] = new Line(S_Shape[8],S_Shape[9], vel);
+		_shapes[7] = new Arc(S_Shape[7],S_Shape[8], false, PI, vel);
+		_shapes[8] = new Line(S_Shape[8],S_Shape[9], vel, .0f, 2.0f);
 		_num = 9;
 	}
 };
@@ -488,7 +534,6 @@ enum shapes {
 	LINES,	// shape of two line
 	SINS,
 	CICLES,	//shape of cicles
-	SHAPE_W, //shape of W
 	SHAPE_S,	// shape of SSS
 };
 
@@ -499,7 +544,6 @@ static Path* get_path(shapes shape, float vel = .0f){
 	case LINES:	path = new Path_Lines(vel); break;
 	case SINS:  path = new Path_Sins(vel); break;
 	case CICLES:	path = new Path_Cicles(vel); break;
-	case SHAPE_W:	path = new Path_Shape_W(vel); break;
 	case SHAPE_S:	path = new Path_Shape_S(vel); break;
 	default:path = nullptr; break;
 	}
@@ -1418,9 +1462,9 @@ MulticopterPositionControl::control_manual(float dt)
 			
 			int ret = path->get_next(path_time, next);
 			if (statu == PAUSE) next._vel.zero();
-			else PX4_INFO("%8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",
-					(double)_pos_sp(0),(double)_pos_sp(1),(double)_pos_sp(2),
-					(double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
+			// else PX4_INFO("dt: %8.4f, %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", (double)path_time,
+			// 		(double)_pos_sp(0),(double)_pos_sp(1),(double)_pos_sp(2),
+			// 		(double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
 			_pos_sp = next._pos;
 			
 			if(ret == 0) return;
@@ -2018,11 +2062,11 @@ MulticopterPositionControl::task_main()
 			_alt_hold_engaged = false;
 		}
 
-		if (_control_mode.flag_control_altitude_enabled ||
-		    _control_mode.flag_control_position_enabled ||
-		    _control_mode.flag_control_climb_rate_enabled ||
-		    _control_mode.flag_control_velocity_enabled ||
-		    _control_mode.flag_control_acceleration_enabled) {
+		 if (_control_mode.flag_control_altitude_enabled ||
+		     _control_mode.flag_control_position_enabled ||
+		     _control_mode.flag_control_climb_rate_enabled ||
+		     _control_mode.flag_control_velocity_enabled ||
+		     _control_mode.flag_control_acceleration_enabled) {
 
 			_vel_ff.zero();
 
@@ -2584,7 +2628,7 @@ MulticopterPositionControl::task_main()
 							pretimeStamp = timeNow;
 							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
 
-							float hovering_thrust = -0.05525f * _battery_status.voltage_filtered_v + 1.2033f;
+							float hovering_thrust = -0.058f * _battery_status.voltage_filtered_v + 1.23f;
 							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(hovering_thrust / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
 
 //							mavlink_log_critical(&_mavlink_log_pub, "ff_delta:%8.4f, %8.4f, %8.4f",(double)ff_delta(0),
