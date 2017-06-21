@@ -502,16 +502,16 @@ struct Path_Cicles : public Path{
 
 // shape of S
 math::Vector<3> S_Shape[10] = {
-	math::Vector<3>(2.0f,-2.5f,plane_height),
-	math::Vector<3>(2.0f,2.0f,plane_height),
-	math::Vector<3>(1.0f,2.0f,plane_height),
-	math::Vector<3>(1.0f,-2.0f,plane_height),
-	math::Vector<3>(0.0f,-2.0f,plane_height),
-	math::Vector<3>(0.0f,2.0f,plane_height),
-	math::Vector<3>(-1.0f,2.0f,plane_height),
-	math::Vector<3>(-1.0f,-2.0f,plane_height),
-	math::Vector<3>(-2.0f,-2.0f,plane_height),
-	math::Vector<3>(-2.0f,2.5f,plane_height),
+	math::Vector<3>(2.0f,-2.0f,plane_height),
+	math::Vector<3>(2.0f,1.5f,plane_height),
+	math::Vector<3>(1.0f,1.5f,plane_height),
+	math::Vector<3>(1.0f,-1.5f,plane_height),
+	math::Vector<3>(0.0f,-1.5f,plane_height),
+	math::Vector<3>(0.0f,1.5f,plane_height),
+	math::Vector<3>(-1.0f,1.5f,plane_height),
+	math::Vector<3>(-1.0f,-1.5f,plane_height),
+	math::Vector<3>(-2.0f,-1.5f,plane_height),
+	math::Vector<3>(-2.0f,2.0f,plane_height),
 };
 
 struct Path_Shape_S:public Path{
@@ -3022,7 +3022,7 @@ MulticopterPositionControl::start()
 	_control_task = px4_task_spawn_cmd("mc_pos_control",
 					   SCHED_DEFAULT,
 					   SCHED_PRIORITY_MAX - 5,
-					   3000,
+					   5000,
 					   (px4_main_t)&MulticopterPositionControl::task_main_trampoline,
 					   nullptr);
 
