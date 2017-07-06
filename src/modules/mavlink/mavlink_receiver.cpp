@@ -120,6 +120,7 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_force_sp_pub(nullptr),
 	_pos_sp_triplet_pub(nullptr),
 	_att_pos_mocap_pub(nullptr),
+	_att_pos_vel_mocap_pub(nullptr),
 	_vision_position_pub(nullptr),
 	_telemetry_status_pub(nullptr),
 	_rc_pub(nullptr),
@@ -132,6 +133,12 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_control_state_pub(nullptr),
 	_gps_inject_data_pub(nullptr),
 	_command_ack_pub(nullptr),
+	//gyzhang
+	_target_endeff_frame_pub(nullptr),
+	_manipulator_joint_status_pub(nullptr),
+	_endeff_frame_status_pub(nullptr),
+	_target_info_pub(nullptr),
+
 	_control_mode_sub(orb_subscribe(ORB_ID(vehicle_control_mode))),
 	_hil_frames(0),
 	_old_timestamp(0),
@@ -198,6 +205,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 
 	case MAVLINK_MSG_ID_ATT_POS_MOCAP:
 		handle_message_att_pos_mocap(msg);
+		break;
+
+	case MAVLINK_MSG_ID_ATT_POS_VEL_MOCAP:
+		handle_message_att_pos_vel_mocap(msg);
 		break;
 
 	case MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED:
@@ -278,6 +289,21 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	case MAVLINK_MSG_ID_LOGGING_ACK:
 		handle_message_logging_ack(msg);
 		break;
+//gyzhang
+	case MAVLINK_MSG_ID_TARGET_INFO:
+		handle_message_target_info(msg);
+		break;
+
+	case MAVLINK_MSG_ID_TARGET_ENDEFF_FRAME:
+			handle_message_target_endeff_frame(msg);
+			break;
+
+	case MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS:
+			handle_message_manipulator_joint_status(msg);
+			break;
+	case MAVLINK_MSG_ID_ENDEFF_FRAME_STATUS:
+			handle_message_endeff_frame_status(msg);
+			break;
 
 	default:
 		break;
@@ -742,6 +768,41 @@ MavlinkReceiver::handle_message_att_pos_mocap(mavlink_message_t *msg)
 
 	} else {
 		orb_publish(ORB_ID(att_pos_mocap), _att_pos_mocap_pub, &att_pos_mocap);
+	}
+}
+
+void
+MavlinkReceiver::handle_message_att_pos_vel_mocap(mavlink_message_t *msg)
+{
+	mavlink_att_pos_vel_mocap_t mocap;
+	mavlink_msg_att_pos_vel_mocap_decode(msg, &mocap);
+
+	struct att_pos_vel_mocap_s att_pos_vel_mocap = {};
+
+	// Use the component ID to identify the mocap system
+	att_pos_vel_mocap.id = msg->compid;
+
+	att_pos_vel_mocap.timestamp = sync_stamp(mocap.time_usec);
+	att_pos_vel_mocap.timestamp_received = hrt_absolute_time();
+
+	att_pos_vel_mocap.q[0] = mocap.q[0];
+	att_pos_vel_mocap.q[1] = mocap.q[1];
+	att_pos_vel_mocap.q[2] = mocap.q[2];
+	att_pos_vel_mocap.q[3] = mocap.q[3];
+
+	att_pos_vel_mocap.x = mocap.x;
+	att_pos_vel_mocap.y = mocap.y;
+	att_pos_vel_mocap.z = mocap.z;
+
+	att_pos_vel_mocap.vx = mocap.Vx;
+	att_pos_vel_mocap.vy = mocap.Vy;
+	att_pos_vel_mocap.vz = mocap.Vz;
+
+	if (_att_pos_vel_mocap_pub == nullptr) {
+		_att_pos_vel_mocap_pub = orb_advertise(ORB_ID(att_pos_vel_mocap), &att_pos_vel_mocap);
+
+	} else {
+		orb_publish(ORB_ID(att_pos_vel_mocap), _att_pos_vel_mocap_pub, &att_pos_vel_mocap);
 	}
 }
 
@@ -2219,6 +2280,134 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 	}
 }
 
+//gyzhang
+void
+MavlinkReceiver::handle_message_target_endeff_frame(mavlink_message_t *msg)
+{
+	mavlink_target_endeff_frame_t target_endeff_frame_data;
+	mavlink_msg_target_endeff_frame_decode(msg, &target_endeff_frame_data);
+   struct target_endeff_frame_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.x = target_endeff_frame_data.x;
+    f.y = target_endeff_frame_data.y;
+    f.z = target_endeff_frame_data.z;
+    f.roll = target_endeff_frame_data.roll;
+    f.pitch = target_endeff_frame_data.pitch;
+    f.yaw = target_endeff_frame_data.yaw;
+    f.vx = target_endeff_frame_data.vx;
+    f.vy = target_endeff_frame_data.vy;
+    f.vz = target_endeff_frame_data.vz;
+    f.roll_rate = target_endeff_frame_data.roll_rate;
+    f.pitch_rate = target_endeff_frame_data.pitch_rate;
+    f.yaw_rate = target_endeff_frame_data.yaw_rate;
+    f.arm_enable = target_endeff_frame_data.arm_enable;
+
+    if (_target_endeff_frame_pub == nullptr) {
+    	_target_endeff_frame_pub = orb_advertise(ORB_ID(target_endeff_frame), &f);
+
+    } else {
+        orb_publish(ORB_ID(target_endeff_frame), _target_endeff_frame_pub, &f);
+    }
+}
+void
+MavlinkReceiver::handle_message_manipulator_joint_status(mavlink_message_t *msg)
+{
+	mavlink_manipulator_joint_status_t manipulator_joint_status_data;
+	mavlink_msg_manipulator_joint_status_decode(msg, &manipulator_joint_status_data);
+
+   struct manipulator_joint_status_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.joint_posi_1 = manipulator_joint_status_data.joint_posi_1;
+    f.joint_posi_2 = manipulator_joint_status_data.joint_posi_2;
+    f.joint_posi_3 = manipulator_joint_status_data.joint_posi_3;
+    f.joint_posi_4 = manipulator_joint_status_data.joint_posi_4;
+    f.joint_posi_5 = manipulator_joint_status_data.joint_posi_5;
+    f.joint_posi_6 = manipulator_joint_status_data.joint_posi_6;
+    f.joint_posi_7 = manipulator_joint_status_data.joint_posi_7;
+    f.joint_rate_1 = manipulator_joint_status_data.joint_rate_1;
+    f.joint_rate_2 = manipulator_joint_status_data.joint_rate_2;
+    f.joint_rate_3 = manipulator_joint_status_data.joint_rate_3;
+    f.joint_rate_4 = manipulator_joint_status_data.joint_rate_4;
+    f.joint_rate_5 = manipulator_joint_status_data.joint_rate_5;
+    f.joint_rate_6 = manipulator_joint_status_data.joint_rate_6;
+    f.joint_rate_7 = manipulator_joint_status_data.joint_rate_7;
+    f.torque_1 = manipulator_joint_status_data.torque_1;
+    f.torque_2 = manipulator_joint_status_data.torque_2;
+    f.torque_3 = manipulator_joint_status_data.torque_3;
+    f.torque_4 = manipulator_joint_status_data.torque_4;
+    f.torque_5 = manipulator_joint_status_data.torque_5;
+    f.torque_6 = manipulator_joint_status_data.torque_6;
+    f.torque_7 = manipulator_joint_status_data.torque_7;
+
+    if (_manipulator_joint_status_pub == nullptr) {
+    	_manipulator_joint_status_pub = orb_advertise(ORB_ID(manipulator_joint_status), &f);
+
+    } else {
+        orb_publish(ORB_ID(manipulator_joint_status), _manipulator_joint_status_pub, &f);
+    }
+}
+void
+MavlinkReceiver::handle_message_endeff_frame_status(mavlink_message_t *msg)
+{
+	mavlink_endeff_frame_status_t endeff_frame_status_data;
+	mavlink_msg_endeff_frame_status_decode(msg, &endeff_frame_status_data);
+
+   struct endeff_frame_status_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.gripper_posi=endeff_frame_status_data.gripper_posi;
+    f.x = endeff_frame_status_data.x;
+    f.y = endeff_frame_status_data.y;
+    f.z = endeff_frame_status_data.z;
+    f.roll = endeff_frame_status_data.roll;
+    f.pitch = endeff_frame_status_data.pitch;
+    f.yaw = endeff_frame_status_data.yaw;
+    f.vx = endeff_frame_status_data.vx;
+    f.vy = endeff_frame_status_data.vy;
+    f.vz = endeff_frame_status_data.vz;
+    f.roll_rate = endeff_frame_status_data.roll_rate;
+    f.pitch_rate = endeff_frame_status_data.pitch_rate;
+    f.yaw_rate = endeff_frame_status_data.yaw_rate;
+    f.arm_enable = endeff_frame_status_data.arm_enable;
+	f.gripper_status = endeff_frame_status_data.gripper_status;
+    if (_endeff_frame_status_pub == nullptr) {
+    	_endeff_frame_status_pub = orb_advertise(ORB_ID(endeff_frame_status), &f);
+
+    } else {
+        orb_publish(ORB_ID(endeff_frame_status), _endeff_frame_status_pub, &f);
+    }
+}
+void
+MavlinkReceiver::handle_message_target_info(mavlink_message_t *msg)
+{
+	mavlink_target_info_t target_info_msg;
+	target_info_s target_info_topic = { };
+
+	mavlink_msg_target_info_decode(msg, &target_info_msg);
+
+	target_info_topic.timestamp = hrt_absolute_time();
+	target_info_topic.x=target_info_msg.x;
+	target_info_topic.y=target_info_msg.y;
+	target_info_topic.z=target_info_msg.z;
+	target_info_topic.vx=target_info_msg.vx;
+	target_info_topic.vy=target_info_msg.vy;
+	target_info_topic.vz=target_info_msg.vz;
+	target_info_topic.roll=target_info_msg.roll;
+	target_info_topic.pitch=target_info_msg.pitch;
+	target_info_topic.yaw=target_info_msg.yaw;
+
+	if (_target_info_pub == nullptr) {
+		_target_info_pub = orb_advertise(ORB_ID(target_info), &target_info_topic);
+	} else {
+		orb_publish(ORB_ID(target_info), _target_info_pub, &target_info_topic);
+
+	}
+}
 /**
  * Receive data from UART.
  */

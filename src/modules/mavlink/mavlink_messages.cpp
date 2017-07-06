@@ -91,6 +91,13 @@
 #include <uORB/topics/wind_estimate.h>
 #include <uORB/topics/mount_orientation.h>
 #include <uORB/topics/collision_report.h>
+
+//gyzhang
+#include <uORB/topics/manipulator_joint_status.h>
+#include <uORB/topics/target_endeff_frame.h>
+#include <uORB/topics/endeff_frame_status.h>
+#include <uORB/topics/target_info.h>
+
 #include <uORB/uORB.h>
 
 
@@ -3592,6 +3599,296 @@ protected:
 	}
 };
 
+//gyzhang
+class MavlinkStreamTargetInfo : public MavlinkStream
+{
+public:
+	const char *get_name() const
+	{
+		return MavlinkStreamTargetInfo::get_name_static();
+	}
+
+	static const char *get_name_static()
+	{
+		return "TARGET_INFO";
+	}
+
+	static uint16_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_TARGET_INFO;
+	}
+
+	uint16_t get_id()
+	{
+		return get_id_static();
+	}
+
+	static MavlinkStream *new_instance(Mavlink *mavlink)
+	{
+		return new MavlinkStreamTargetInfo(mavlink);
+	}
+
+	unsigned get_size()
+	{
+		return (_target_info_time > 0) ? MAVLINK_MSG_ID_TARGET_INFO_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES : 0;
+	}
+
+private:
+	MavlinkOrbSubscription *_target_info_sub;
+	uint64_t _target_info_time;
+
+	/* do not allow top copying this class */
+	MavlinkStreamTargetInfo(MavlinkStreamTargetInfo &);
+	MavlinkStreamTargetInfo &operator = (const MavlinkStreamTargetInfo &);
+
+protected:
+	explicit MavlinkStreamTargetInfo(Mavlink *mavlink) : MavlinkStream(mavlink),
+		_target_info_sub(_mavlink->add_orb_subscription(ORB_ID(target_info))),
+		_target_info_time(0)
+	{}
+
+	void send(const hrt_abstime t)
+	{
+		struct target_info_s target_info = {};
+
+		bool updated = _target_info_sub->update(&_target_info_time, &target_info);
+
+		if (updated) {
+
+			mavlink_target_info_t msg = {};
+
+			msg.time_usec=target_info.timestamp;
+			msg.x=target_info.x;
+			msg.y=target_info.y;
+			msg.z=target_info.z;
+			msg.vx=target_info.vx;
+			msg.vy=target_info.vy;
+			msg.vz=target_info.vz;
+			msg.roll=target_info.roll;
+			msg.pitch=target_info.pitch;
+			msg.yaw=target_info.yaw;
+
+			mavlink_msg_target_info_send_struct(_mavlink->get_channel(), &msg);
+		}
+	}
+};
+
+class MavlinkStreamTargetEndeffFrame : public MavlinkStream
+{
+public:
+   const char *get_name() const
+    {
+        return MavlinkStreamTargetEndeffFrame::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "TARGET_ENDEFF_FRAME";
+    }
+	static uint16_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_TARGET_ENDEFF_FRAME;
+	}
+    uint16_t get_id()
+    {
+       return MAVLINK_MSG_ID_TARGET_ENDEFF_FRAME;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamTargetEndeffFrame(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_TARGET_ENDEFF_FRAME_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamTargetEndeffFrame(MavlinkStreamTargetEndeffFrame &);
+    MavlinkStreamTargetEndeffFrame& operator = (const MavlinkStreamTargetEndeffFrame &);
+
+protected:
+    explicit MavlinkStreamTargetEndeffFrame(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(target_endeff_frame))),  // make sure you enter the name of your uorb topic here
+        _time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct target_endeff_frame_s _data;    //make sure ca_traj_struct_s is the definition of your uorb topic
+
+       if (_sub->update(&_time, &_data)) {
+        	mavlink_target_endeff_frame_t _msg_data;  //make sure mavlink_ca_trajectory_t is the definition of your custom mavlink message
+
+       	//_msg_data.timestamp = hrt_absolute_time();
+        //	_msg_data.test 		= _data.test;
+        	_msg_data.x = _data.x;
+        	_msg_data.y = _data.y;
+        	_msg_data.z = _data.z;
+        	_msg_data.roll = _data.roll;
+        	_msg_data.pitch = _data.pitch;
+        	_msg_data.yaw = _data.yaw;
+        	_msg_data.vx = _data.vx;
+        	_msg_data.vy = _data.vy;
+        	_msg_data.vz = _data.vz;
+        	_msg_data.roll_rate = _data.roll_rate;
+        	_msg_data.pitch_rate = _data.pitch_rate;
+        	_msg_data.yaw_rate = _data.yaw_rate;
+
+        	_msg_data.arm_enable = _data.arm_enable;
+
+        	mavlink_msg_target_endeff_frame_send_struct(_mavlink->get_channel(), &_msg_data);
+        }
+    }
+};
+
+class MavlinkStreamManipulatorJointStatus : public MavlinkStream
+{
+public:
+   const char *get_name() const
+    {
+        return MavlinkStreamManipulatorJointStatus::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "MANIPULATOR_JOINT_STATUS";
+    }
+	static uint16_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS;
+	}
+    uint16_t get_id()
+    {
+       return MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamManipulatorJointStatus(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_MANIPULATOR_JOINT_STATUS_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamManipulatorJointStatus(MavlinkStreamManipulatorJointStatus &);
+    MavlinkStreamManipulatorJointStatus& operator = (const MavlinkStreamManipulatorJointStatus &);
+
+protected:
+    explicit MavlinkStreamManipulatorJointStatus(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(manipulator_joint_status))),  // make sure you enter the name of your uorb topic here
+        _time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct manipulator_joint_status_s _data;    //make sure ca_traj_struct_s is the definition of your uorb topic
+
+       if (_sub->update(&_time, &_data)) {
+        	mavlink_manipulator_joint_status_t _msg_data;  //make sure mavlink_ca_trajectory_t is the definition of your custom mavlink message
+
+        	_msg_data.joint_posi_1 = _data.joint_posi_1;
+        	_msg_data.joint_posi_2 = _data.joint_posi_2;
+        	_msg_data.joint_posi_3 = _data.joint_posi_3;
+        	_msg_data.joint_posi_4 = _data.joint_posi_4;
+        	_msg_data.joint_posi_5 = _data.joint_posi_5;
+        	_msg_data.joint_posi_6 = _data.joint_posi_6;
+        	_msg_data.joint_posi_7 = _data.joint_posi_7;
+        	_msg_data.joint_rate_1 = _data.joint_rate_1;
+        	_msg_data.joint_rate_2 = _data.joint_rate_2;
+        	_msg_data.joint_rate_3 = _data.joint_rate_3;
+        	_msg_data.joint_rate_4 = _data.joint_rate_4;
+        	_msg_data.joint_rate_5 = _data.joint_rate_5;
+        	_msg_data.joint_rate_6 = _data.joint_rate_6;
+        	_msg_data.joint_rate_7 = _data.joint_rate_7;
+        	_msg_data.torque_1 = _data.torque_1;
+        	_msg_data.torque_2 = _data.torque_2;
+        	_msg_data.torque_3 = _data.torque_3;
+        	_msg_data.torque_4 = _data.torque_4;
+        	_msg_data.torque_5 = _data.torque_5;
+        	_msg_data.torque_6 = _data.torque_6;
+        	_msg_data.torque_7 = _data.torque_7;
+
+        	mavlink_msg_manipulator_joint_status_send_struct(_mavlink->get_channel(), &_msg_data);
+        }
+    }
+};
+class MavlinkStreamEndeffFrameStatus : public MavlinkStream
+{
+public:
+   const char *get_name() const
+    {
+        return MavlinkStreamEndeffFrameStatus::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "ENDEFF_FRAME_STATUS";
+    }
+	static uint16_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_ENDEFF_FRAME_STATUS;
+	}
+    uint16_t get_id()
+    {
+       return MAVLINK_MSG_ID_ENDEFF_FRAME_STATUS;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamEndeffFrameStatus(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_ENDEFF_FRAME_STATUS_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamEndeffFrameStatus(MavlinkStreamEndeffFrameStatus &);
+    MavlinkStreamEndeffFrameStatus& operator = (const MavlinkStreamEndeffFrameStatus &);
+
+protected:
+    explicit MavlinkStreamEndeffFrameStatus(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(endeff_frame_status))),  // make sure you enter the name of your uorb topic here
+        _time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct endeff_frame_status_s _data;    //make sure ca_traj_struct_s is the definition of your uorb topic
+
+       if (_sub->update(&_time, &_data)) {
+        	mavlink_endeff_frame_status_t _msg_data;  //make sure mavlink_ca_trajectory_t is the definition of your custom mavlink message
+
+       	    //_msg_data.timestamp = hrt_absolute_time();
+			_msg_data.gripper_posi = _data.gripper_posi;
+        	_msg_data.x = _data.x;
+        	_msg_data.y = _data.y;
+        	_msg_data.z = _data.z;
+        	_msg_data.roll = _data.roll;
+        	_msg_data.pitch = _data.pitch;
+        	_msg_data.yaw = _data.yaw;
+        	_msg_data.vx = _data.vx;
+        	_msg_data.vy = _data.vy;
+        	_msg_data.vz = _data.vz;
+        	_msg_data.roll_rate = _data.roll_rate;
+        	_msg_data.pitch_rate = _data.pitch_rate;
+        	_msg_data.yaw_rate = _data.yaw_rate;
+        	_msg_data.arm_enable = _data.arm_enable;
+        	_msg_data.gripper_status = _data.gripper_status;
+
+        	mavlink_msg_endeff_frame_status_send_struct(_mavlink->get_channel(), &_msg_data);
+        }
+    }
+};
 const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamHeartbeat::new_instance, &MavlinkStreamHeartbeat::get_name_static, &MavlinkStreamHeartbeat::get_id_static),
 	new StreamListItem(&MavlinkStreamStatustext::new_instance, &MavlinkStreamStatustext::get_name_static, &MavlinkStreamStatustext::get_id_static),
@@ -3638,5 +3935,10 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamCollision::new_instance, &MavlinkStreamCollision::get_name_static, &MavlinkStreamCollision::get_id_static),
 	new StreamListItem(&MavlinkStreamWind::new_instance, &MavlinkStreamWind::get_name_static, &MavlinkStreamWind::get_id_static),
 	new StreamListItem(&MavlinkStreamMountOrientation::new_instance, &MavlinkStreamMountOrientation::get_name_static, &MavlinkStreamMountOrientation::get_id_static),
+	//gyzhang
+	new StreamListItem(&MavlinkStreamTargetInfo::new_instance, &MavlinkStreamTargetInfo::get_name_static, &MavlinkStreamTargetInfo::get_id_static),
+	new StreamListItem(&MavlinkStreamTargetEndeffFrame::new_instance, &MavlinkStreamTargetEndeffFrame::get_name_static, &MavlinkStreamTargetEndeffFrame::get_id_static),
+	new StreamListItem(&MavlinkStreamManipulatorJointStatus::new_instance, &MavlinkStreamManipulatorJointStatus::get_name_static, &MavlinkStreamManipulatorJointStatus::get_id_static),
+	new StreamListItem(&MavlinkStreamEndeffFrameStatus::new_instance, &MavlinkStreamEndeffFrameStatus::get_name_static, &MavlinkStreamEndeffFrameStatus::get_id_static),
 	nullptr
 };

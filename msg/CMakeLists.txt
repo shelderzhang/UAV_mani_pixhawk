@@ -124,6 +124,16 @@ set(msg_file_names
 	vehicle_roi.msg
 	mount_orientation.msg
 	collision_report.msg
+	
+	#gyzhang
+	att_pos_vel_mocap.msg
+	manipulator_joint_status.msg
+	target_endeff_frame.msg
+	endeff_frame_status.msg
+	target_info.msg
+	coupling_force.msg
+	#	pid_err.msg
+	
 	)
 
 # Get absolute paths
