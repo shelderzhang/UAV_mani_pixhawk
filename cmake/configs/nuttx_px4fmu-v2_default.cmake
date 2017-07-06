@@ -124,6 +124,16 @@ set(config_module_list
 	modules/systemlib/mixer
 	modules/uORB
 	modules/dataman
+	
+	# For new mavlink msg test
+	modules/mavlink_msg_receive_test
+    modules/mavlink_msg_send_test
+    
+	# For Manipulator control
+	#modules/manipulator_control
+	
+	# For Coupling Force Sensor data
+	#modules/coupling_force
 
 	#
 	# Libraries
