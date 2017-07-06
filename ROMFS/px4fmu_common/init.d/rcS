@@ -693,7 +693,18 @@ then
 	fi
 
 	# Start MAVLink
-	mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+	#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+	# gyzhang
+	# Start USB shell if no microSD present, MAVLink else
+	if [ $LOG_FILE == /dev/null ]
+	then
+		# Try to get an USB console
+		nshterm /dev/ttyACM0 &
+	else
+		#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+		nshterm /dev/ttyACM0 &
+	fi
+	
 
 	#
 	# Logging
