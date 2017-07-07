@@ -54,6 +54,8 @@
 #include <uORB/topics/endeff_frame_status.h>
 #include <uORB/topics/coupling_force.h>
 #include <uORB/topics/att_pos_mocap.h>
+#include <uORB/topics/att_pos_vel_mocap.h>
+
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 
@@ -153,13 +155,13 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 	int manipulator_joint_status_sub_fd = orb_subscribe(ORB_ID(manipulator_joint_status));
 	int endeff_frame_status_sub_fd = orb_subscribe(ORB_ID(endeff_frame_status));
 	int coupl_force_sub_fd = orb_subscribe(ORB_ID(coupling_force));
-	int att_pos_mocap_sub_fd = orb_subscribe(ORB_ID(att_pos_mocap));
+	int att_pos_vel_mocap_sub_fd = orb_subscribe(ORB_ID(att_pos_vel_mocap));
 
 	orb_set_interval(coupl_force_sub_fd, 1000);
 	orb_set_interval(target_endeff_frame_sub_fd, 100);
 	orb_set_interval(manipulator_joint_status_sub_fd, 100);
 	orb_set_interval(endeff_frame_status_sub_fd, 100);
-	orb_set_interval(att_pos_mocap_sub_fd,100);
+	orb_set_interval(att_pos_vel_mocap_sub_fd,100);
 	struct target_endeff_frame_s data1;
 
 	struct manipulator_joint_status_s data2;
@@ -168,14 +170,14 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 
 	struct coupling_force_s data4;
 
-	struct att_pos_mocap_s data5;
+	struct att_pos_vel_mocap_s data5;
 
 	struct pollfd fds[5] = {
 			{ .fd = target_endeff_frame_sub_fd,   .events = POLLIN },
 			{ .fd = manipulator_joint_status_sub_fd,   .events = POLLIN },
 			{ .fd = endeff_frame_status_sub_fd,   .events = POLLIN },
 			{ .fd = coupl_force_sub_fd,   .events = POLLIN  },
-			{ .fd = att_pos_mocap_sub_fd,   .events = POLLIN  },
+			{ .fd = att_pos_vel_mocap_sub_fd,   .events = POLLIN  },
 	};
 	int error_counter = 0;
 
@@ -229,7 +231,7 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 			}
 			if (fds[3].revents & POLLIN)
 			{
-				orb_copy(ORB_ID(coupling_force), coupl_force_sub_fd, &data4);	// �������
+				orb_copy(ORB_ID(coupling_force), coupl_force_sub_fd, &data4);
 				PX4_WARN("\n mavlink_msg_receive: coupling_force \n \t Force:%8.4f %8.4f %8.4f", (double)data4.force_x, (double)data4.force_y, (double)data4.force_z);
 
 
@@ -238,9 +240,9 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 			}
 			if (fds[4].revents & POLLIN)
 			{
-				printf("att_pos_mocap");
-				orb_copy(ORB_ID(att_pos_mocap), att_pos_mocap_sub_fd, &data5);	// �������
-				PX4_WARN("\n mavlink_msg_receive: att_pos_mocap \n \t POS:%8.4f %8.4f %8.4f", (double)data5.x, (double)data5.y, (double)data5.z);
+				printf("att_pos_vel_mocap");
+				orb_copy(ORB_ID(att_pos_vel_mocap), att_pos_vel_mocap_sub_fd, &data5);
+				PX4_WARN("\n mavlink_msg_receive: att_pos_vel_mocap \n \t POS:%8.4f %8.4f %8.4f", (double)data5.x, (double)data5.y, (double)data5.z);
 
 
 
