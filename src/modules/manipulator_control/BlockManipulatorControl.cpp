@@ -15,9 +15,9 @@
 static float GRAPPER_ANGLE_RANGE[2] = {-5.0f / 180.0f * (float)M_PI, 5.0f / 180.0f * (float)M_PI};
 
 /*mani range of the manipulator in the body frame*/
-static float MANI_RANGE[6] = {0.35f, 0.46f, //radius of the mani range
-		-45.0f / 180.0f * (float)M_PI, -5.0f / 180.0f * (float)M_PI, //the angle between x-o-y and the target vector
-		-35.0f / 180.0f * (float)M_PI, 35.0f / 180.0f * (float)M_PI};//the angle between x-o-z and the target vector
+static float MANI_RANGE[6] = {0.35f, 0.46f, //R: radius of the mani range
+		-45.0f / 180.0f * (float)M_PI, -5.0f / 180.0f * (float)M_PI, // THETA: the angle between x-o-y and the target vector
+		-35.0f / 180.0f * (float)M_PI, 35.0f / 180.0f * (float)M_PI};//PSI: the angle between x-o-z and the target vector
 static float TRIGGER_RANGE = 0.6f;
 enum {R_MIN = 0, R_MAX, THETA_MIN, THETA_MAX, PSI_MIN, PSI_MAX};
 
@@ -97,40 +97,23 @@ void BlockManipulatorControl::control()
 	if (enableMani) {
 		Vector3f pos(_pos_sub.get().x, _pos_sub.get().y, _pos_sub.get().z);
 //		pos = Vector3f(.0f, .0f, .0f); //for debug
+
+		Vector3f target_pos(_target_sub.get().x, _target_sub.get().y, _target_sub.get().z);
+//		target_pos = Vector3f(0.25f, 0.0f, 0.5f); //for debug
+
 		print_info(print, &mavlink_log_pub, "pos x:%8.4f, y:%8.4f, z:%8.4f",
 					(double)pos(0),
 					(double)pos(1),
 					(double)pos(2));
-		Vector3f target_pos(_target_sub.get().x, _target_sub.get().y, _target_sub.get().z);
-//		target_pos = Vector3f(0.25f, 0.0f, 0.5f); //for debug
-
-//		Quatf qq;
-//		qq.from_axis_angle(Vector3f(.0f, .0f, 1.0f), -2.5f + _timeStamp / 20.0f / 1.0e6f);
-//
-////		double t = (double)(-1.5f + _timeStamp / 20.0f / 1.0e6f) * 57.3;
-//
-//		Dcmf RR(qq);
-//
-//		target_pos = RR * Vector3f(.4f, 0.0f, 0.0f)
-//				+ MANI_OFFSET + MANI_FIRST_JOINT;
-
-
-//		Vector3f target_vel(_target_sub.get().vx, _target_sub.get().vy, _target_sub.get().vz);
-
-
 		print_info(print, &mavlink_log_pub, "target x:%8.4f, y:%8.4f, z:%8.4f",
 			(double)target_pos(0),
 			(double)target_pos(1),
 			(double)target_pos(2));
 
-		Matrix3f R_att(_att_sub.get().R);
-		print_info(print, &mavlink_log_pub, "att roll:%8.4f, pitch:%8.4f, yaw:%8.4f",
-			(double)_att_sub.get().roll,
-			(double)_att_sub.get().pitch,
-			(double)_att_sub.get().yaw);
-
+		/*gyzhang <Jul 8, 2017>*/
+		Quatf q_att = _att_sub.get().q;
+		Matrix3f R_att=q_att.to_dcm();
 		Vector3f distance = R_att.transpose() * (target_pos - pos) - MANI_OFFSET - MANI_FIRST_JOINT;
-
 		Vector3f mani_sp(distance);
 		print_info(print, &mavlink_log_pub, "distance x:%8.4f, y:%8.4f, z:%8.4f",
 				(double)distance(0),
@@ -232,21 +215,21 @@ void BlockManipulatorControl::control()
 
 		_manip_pub.get().z= mani_sp(2);
 
-		/*calculate grabber velosity -bdai<19 Nov 2016>*/
-//		Vector3f mani_status(_mani_status_sub.get().x,
-//			_mani_status_sub.get().y, _mani_status_sub.get().z);
-//		{
-//			Vector3f mani_vel  = MANI_P * (mani_sp - mani_status);
-//
-//			if (mani_vel.norm() > MANI_MAX_VEL){
-//				mani_vel = mani_vel.normalized() * MANI_MAX_VEL;
-//			}
-//
-//			_manip_pub.get().vx = mani_vel(0);
-//			_manip_pub.get().vy = mani_vel(1);
-//			_manip_pub.get().vz = mani_vel(2);
-//
-//		}
+		/*calculate grabber velocity -bdai<19 Nov 2016>*/
+		Vector3f mani_status(_mani_status_sub.get().x,
+			_mani_status_sub.get().y, _mani_status_sub.get().z);
+		{
+			Vector3f mani_vel  = MANI_P * (mani_sp - mani_status);
+
+			if (mani_vel.norm() > MANI_MAX_VEL){
+				mani_vel = mani_vel.normalized() * MANI_MAX_VEL;
+			}
+
+			_manip_pub.get().vx = mani_vel(0);
+			_manip_pub.get().vy = mani_vel(1);
+			_manip_pub.get().vz = mani_vel(2);
+
+		}
 
 		/*calculate grabber euler angle -bdai<17 Nov 2016>*/
 		/* euler angle is calculated by the frame of body and eff
