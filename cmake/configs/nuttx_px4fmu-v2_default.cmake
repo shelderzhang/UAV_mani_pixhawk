@@ -130,7 +130,7 @@ set(config_module_list
     modules/mavlink_msg_send_test
     
 	# For Manipulator control
-	#modules/manipulator_control
+	modules/manipulator_control
 	
 	# For Coupling Force Sensor data
 	modules/coupling_force
