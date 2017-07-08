@@ -66,6 +66,14 @@
 #include "topics/control_state.h"
 #include "topics/vehicle_land_detected.h"
 
+/*gyzhang <Jul 8, 2017>*/
+#include <uORB/topics/manipulator_joint_status.h>
+#include <uORB/topics/target_endeff_frame.h>
+#include <uORB/topics/endeff_frame_status.h>
+#include <uORB/topics/coupling_force.h>
+#include <uORB/topics/att_pos_vel_mocap.h>
+#include <uORB/topics/target_info.h>
+
 #include <px4_defines.h>
 
 namespace uORB
@@ -183,5 +191,13 @@ template class __EXPORT Subscription<att_pos_mocap_s>;
 template class __EXPORT Subscription<vision_position_estimate_s>;
 template class __EXPORT Subscription<control_state_s>;
 template class __EXPORT Subscription<vehicle_land_detected_s>;
+
+/*add new uorb gyzhang <Jul 8, 2017>*/
+template class __EXPORT Subscription<target_info_s>;
+template class __EXPORT Subscription<target_endeff_frame_s>;
+template class __EXPORT Subscription<manipulator_joint_status_s>;
+template class __EXPORT Subscription<coupling_force_s>;
+template class __EXPORT Subscription<endeff_frame_status_s>;
+template class __EXPORT Subscription<att_pos_vel_mocap_s>;
 
 } // namespace uORB
