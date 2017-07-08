@@ -133,7 +133,7 @@ set(config_module_list
 	#modules/manipulator_control
 	
 	# For Coupling Force Sensor data
-	#modules/coupling_force
+	modules/coupling_force
 
 	#
 	# Libraries
