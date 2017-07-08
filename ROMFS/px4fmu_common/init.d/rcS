@@ -728,7 +728,7 @@ then
 				fi
 			else
 			  # gyzhang default sdlog2 start -r 100 -a -b 9 -t
-				if sdlog2 start -r 100 -a -b 9 -t
+				if sdlog2 start -r 50 -a -b 9 -t
 				then
 				fi
 			fi
