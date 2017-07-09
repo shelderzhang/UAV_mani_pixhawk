@@ -126,9 +126,19 @@ set(msg_file_names
 	mount_orientation.msg
 	collision_report.msg
 
+	#bdai
 	angacc_acc.msg
 	angacc_ff.msg
 	acc_ff.msg
+	
+	#gyzhang
+	att_pos_vel_mocap.msg
+	manipulator_joint_status.msg
+	target_endeff_frame.msg
+	endeff_frame_status.msg
+	target_info.msg
+	coupling_force.msg
+
 	)
 
 # Get absolute paths

@@ -634,6 +634,7 @@ struct log_DPRS_s {
 	float temperature;
 };
 
+
 /* --- Angular Acceleration and Acceleration --- */
 #define LOG_AAA_MSG 63
 struct log_AAA_s {
@@ -659,7 +660,97 @@ struct log_ACCF_s {
 	uint8_t saturation;
 };
 
+
+
+/* --- TARGET - INFORMATION --- */
+// gyzhang
+#define LOG_TARI_MSG 75
+struct log_TARI_s {
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+	float roll;
+	float pitch;
+	float yaw;
+};
+
+/*-----TARGET (REFERENCE) ENDEFF FRAME STATUS----*/
+// By gyzhang
+#define LOG_EFFR_MSG 71
+struct log_EFFR_s {
+	uint8_t arm_enable;
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+	float roll;
+	float pitch;
+	float yaw;
+	float vr;
+	float vp;
+	float vyaw;
+};
+
+/*-----ENDEFF FRAME STATUS----*/
+// By gyzhang
+#define LOG_EFFS_MSG 77
+struct log_EFFS_s {
+	uint8_t arm_enable;
+	int8_t gripper_status;
+	float gripper_posi;
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+	float roll;
+	float pitch;
+	float yaw;
+	float vr;
+	float vp;
+	float vyaw;
+};
+
+/*-----ENDEFF FRAME STATUS----*/
+// By gyzhang
+#define LOG_MANJ_MSG 78
+struct log_MANJ_s {
+	float q1;
+	float q2;
+	float q3;
+	float q4;
+	float q5;
+	float q6;
+	float q7;
+	float rate1;
+	float rate2;
+	float rate3;
+	float rate4;
+	float rate5;
+	float rate6;
+	float rate7;
+};
+
+/*------COUPLINGFORCE - COUPLING_FORCE------*/
+// By gyzhang
+#define LOG_CFOR_MSG 79
+struct log_CFOR_s{
+	float force_x;
+	float force_y;
+	float force_z;
+	float moment_x;
+	float moment_y;
+	float moment_z;
+};
 /* --- motion capture with velocity --- */
+// By gyzhang
+
 #define LOG_MOCV_MSG 80
 struct log_MOCV_s {
 	float qw;
@@ -694,6 +785,8 @@ struct log_PARM_s {
 	char name[16];
 	float value;
 };
+
+
 #pragma pack(pop)
 
 // the lower type of initialisation is not supported in C++
@@ -763,15 +856,25 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
 	LOG_FORMAT(DPRS, "Qffff", "errors,DPRESraw,DPRES,DPRESmax,Temp"),
+
 	LOG_FORMAT(AAA,  "ffffff", "AAx,AAy,AAz,Ax,Ay,Az"),
 	LOG_FORMAT(AAF,  "fffB", "AAFx,AAFy,AAFz,angSat"),
 	LOG_FORMAT(ACCF, "fffB", "AFx,AFy,AFz,accSat"),
+
+
+	// By gyzhang
+	LOG_FORMAT(TARI, "fffffffff", "Tx,Ty,Tz,Tvx,Tvy,Tvz,Troll,Tpitch,Tyaw"),
+	LOG_FORMAT(EFFR, "Bffffffffffff","Arme,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
+	LOG_FORMAT(EFFS, "Bbfffffffffffff","Arme,Gs,Gp,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
+	LOG_FORMAT(MANJ, "ffffffffffffff","q1,q2,q3,q4,q5,q6,q7,r1,r2,r3,r4,r5,r6,r7"),
+	LOG_FORMAT(CFOR, "ffffff","Fx,Fy,Fz,Mx,My,Mz"),
 	LOG_FORMAT(MOCV, "ffffffffff", "QuatW,QuatX,QuatY,QuatZ,X,Y,Z,Vx,Vy,Vz"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),
 	LOG_FORMAT(VER, "NZ", "Arch,FwGit"),
 	LOG_FORMAT(PARM, "Nf", "Name,Value")
+
 };
 
 static const unsigned log_formats_num = sizeof(log_formats) / sizeof(log_formats[0]);

@@ -81,6 +81,12 @@
 #include <uORB/topics/control_state.h>
 #include <uORB/topics/collision_report.h>
 
+//gyzhang
+#include <uORB/topics/manipulator_joint_status.h>
+#include <uORB/topics/target_endeff_frame.h>
+#include <uORB/topics/endeff_frame_status.h>
+#include <uORB/topics/target_info.h>
+#include <uORB/topics/att_pos_vel_mocap.h>
 
 #include "mavlink_ftp.h"
 
@@ -151,6 +157,13 @@ private:
 	void handle_message_battery_status(mavlink_message_t *msg);
 	void handle_message_serial_control(mavlink_message_t *msg);
 	void handle_message_logging_ack(mavlink_message_t *msg);
+
+	//gyzhang
+	void handle_message_target_endeff_frame(mavlink_message_t *msg);
+	void handle_message_manipulator_joint_status(mavlink_message_t *msg);
+	void handle_message_endeff_frame_status(mavlink_message_t *msg);
+	void handle_message_target_info(mavlink_message_t *msg);
+
 
 	void *receive_thread(void *arg);
 
@@ -233,6 +246,13 @@ private:
 	static const int _gps_inject_data_queue_size = 6;
 	orb_advert_t _gps_inject_data_pub;
 	orb_advert_t _command_ack_pub;
+
+	//gyzhang
+	orb_advert_t _target_endeff_frame_pub;
+	orb_advert_t _manipulator_joint_status_pub;
+	orb_advert_t _endeff_frame_status_pub;
+	orb_advert_t _target_info_pub;
+
 	int _control_mode_sub;
 	int _hil_frames;
 	uint64_t _old_timestamp;
