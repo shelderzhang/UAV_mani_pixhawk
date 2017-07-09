@@ -48,9 +48,24 @@ mc_pos_control start
 #
 land_detector start multicopter
 
+
+#-----custome-gyzhang-----
+
 angacc_acc_ekf start
+manipulator_control start
+
+#coupling_force_app start
+
+#mavlink_msg_send_test start
 
 mavlink stop-all
 mavlink start -d /dev/ttyS1 -b 57600
 mavlink start -d /dev/ttyS2 -b 57600 -m custom
 #mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+
+#mavlink start -d /dev/ttyS2 -b 57600 -m custom
+#mavlink stream -d /dev/ttyS2 -s TARGET_ENDEFF_FRAME -r 25
+
+#mavlink start -d /dev/ttyS3 -b 115200 -m custom
+
+

@@ -345,7 +345,8 @@ then
 		unset HIL
 	else
 		unset HIL
-		gps start
+		# gyzhang disabel GSP in the couplingforce experiments
+		# gps start
 	fi
 
 	# waypoint storage
@@ -582,7 +583,9 @@ then
 		fi
 		if param compare SYS_COMPANION 157600
 		then
-			mavlink start -d $MAVLINK_COMPANION_DEVICE -b 57600 -m osd -r 1000
+			# gyzhang disable mavlink of  ttyS2 
+			# SYS_COMPANION is set in src/modules/systemlib/system_params.c
+			#mavlink start -d $MAVLINK_COMPANION_DEVICE -b 57600 -m osd -r 1000
 		fi
 		if param compare SYS_COMPANION 257600
 		then
@@ -691,11 +694,19 @@ then
 	then
 		px4flow start &
 	fi
-
-	# Start USB shell or Mavlink
-	nshterm /dev/ttyACM0 &
-	#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
-		
+	
+	# Start MAVLink
+	# gyzhang
+	# Start USB shell if no microSD present, MAVLink else
+	if [ $LOG_FILE == /dev/null ]
+	then
+		# Try to get an USB console
+		nshterm /dev/ttyACM0 &
+	else
+		#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+		nshterm /dev/ttyACM0 &
+	fi
+	
 	#
 	# Logging
 	#
@@ -714,7 +725,8 @@ then
 				then
 				fi
 			else
-				if sdlog2 start -r 100 -a -b 9 -t
+			  # gyzhang default sdlog2 start -r 100 -a -b 9 -t
+				if sdlog2 start -r 50 -a -b 9 -t
 				then
 				fi
 			fi
