@@ -81,6 +81,14 @@
 
 #include <uORB/topics/battery_status.h>
 
+/*gyzhang <Jul 11, 2017>*/
+#include <uORB/topics/target_info.h>
+// blocks.hpp include Subscriptions.hpp and Publications.hpp
+#include <uORB/Publication.hpp>
+#include <uORB/Subscription.hpp>
+#include "manipulator_control/BlockManipulatorControl.hpp"
+
+
 #include <systemlib/systemlib.h>
 #include <systemlib/mavlink_log.h>
 #include <mathlib/mathlib.h>
@@ -98,6 +106,21 @@
 #define ACC_FF
 
 #define PI 3.14159f
+
+#define DEG2RAD ((float)M_PI / 180.0f)
+
+/*target tracking gyzhang <Jul 11, 2017>*/
+static float ELEC_FENCE[3][2] = {-2.5f, 2.5f, -2.5f, 2.5f, -0.45f -2.0f};
+static bool OUT_FENCE = false;
+/*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
+static bool FOLLOW_MODE = true;
+static float pos_sp_condition[4] = { 0.4f, 0.03f,
+		30.0f * DEG2RAD, 45.0f * DEG2RAD};
+enum {R_max = 0, R_min, ANGLE_MIN, ANGLE_MAX};
+enum {MIN = 0, MAX};
+static orb_advert_t mavlink_log_pub = nullptr;
+
+
 
 namespace Path_Tracking {
 
@@ -611,6 +634,10 @@ private:
 
 	int		_angacc_acc_sub;		/* angular acceleration and acceleration*/
 	int 	_battery_status_sub;
+
+	int		_target_sub;/*target status gyzhang <Jul 11, 2017>*/
+	bool	_target_updated;
+
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
@@ -631,6 +658,8 @@ private:
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
 	struct angacc_acc_s			_angacc_acc;
 	struct acc_ff_s				_acc_ff;
+	struct target_info_s	_target;
+
 
 	struct battery_status_s		_battery_status;
 
@@ -879,6 +908,10 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_angacc_acc_sub(-1),
 	_battery_status_sub(-1),
 
+	/*gyzhang <Jul 11, 2017>*/
+	_target_sub(-1),
+	_target_updated(false),
+
 	/* publications */
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
@@ -898,7 +931,9 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_global_vel_sp{},
 	_angacc_acc{},
 	_acc_ff{},
+	_target{},
 	_battery_status{},
+
 	_manual_thr_min(this, "MANTHR_MIN"),
 	_manual_thr_max(this, "MANTHR_MAX"),
 	_acc_ff_a(this, "FF_ACC"),
@@ -1305,6 +1340,12 @@ MulticopterPositionControl::poll_subscriptions()
 	if(updated) {
 		orb_copy(ORB_ID(battery_status), _battery_status_sub, &_battery_status);
 	}
+
+	orb_check(_target_sub, &updated);
+	if (updated) {
+		orb_copy(ORB_ID(target_info), _target_sub, &_target);
+		_target_updated = true;
+	}
 }
 
 float
@@ -1701,6 +1742,101 @@ void MulticopterPositionControl::control_auto(float dt)
 	// Always check reset state of altitude and position control flags in auto
 	reset_pos_sp();
 	reset_alt_sp();
+	/*used to control in motion capture system -bdai<1 Nov 2016>*/
+	#if true
+	    static uint64_t print_time = hrt_absolute_time();
+		uint64_t now = hrt_absolute_time();
+		bool print =  (now - print_time > 500000);
+	    if (print) print_time = now;
+
+	//	if (!_target_updated){
+	//		_pos_sp = _pos;
+	//		_att_sp.yaw_body = _yaw;
+	//		return;
+	//	}
+
+		/*subscribe target position -bdai<1 Nov 2016>*/
+	    matrix::Vector3f target_pos(_target.x, _target.y, _target.z);
+	//	matrix::Vector3f target_pos(0.0f, 0.0f, 0.0f);
+
+	    matrix::Dcmf R_BN;
+		for (int i = 0; i < 3; i++){
+			for (int j = 0; j < 3; j++){
+				R_BN(i,j) = _R(i,j);
+			}
+		}
+		matrix::Vector3f pos(_pos(0), _pos(1), _pos(2));
+
+	//	matrix::Vector3f pos = matrix::Vector3f(1.5f, .0f, .0f);
+	//	Quatf qq;
+	//	qq.from_axis_angle(matrix::Vector3f(.0f, 1.0f, .0f), (now - first_time)*3.0f * DEG2RAD / 1.0e6f);
+	//	matrix::Dcmf RR(qq);
+	//	pos = RR * pos - R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);;
+
+		matrix::Vector3f pos_first_joint = pos +  R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);
+
+		matrix::Vector3f direction = (target_pos - pos_first_joint).normalized();
+
+		matrix::Vector3f r = (matrix::Vector3f(0.0f, 0.0f, 1.0f) % direction).normalized();
+
+		int in_range = 7;
+
+		if (direction(2) < sinf(pos_sp_condition[ANGLE_MIN])) {
+			Quatf q;
+			q.from_axis_angle(r, (float)M_PI/2.0f - pos_sp_condition[ANGLE_MIN]);
+			matrix::Dcmf R(q);
+			direction = R * matrix::Vector3f(0.0f, 0.0f, 1.0f);
+			in_range &= 0<<1;
+		} else if (direction(2) > sinf(pos_sp_condition[ANGLE_MAX])){
+			Quatf q;
+			q.from_axis_angle(r, (float)M_PI/2.0f - pos_sp_condition[ANGLE_MAX]);
+			matrix::Dcmf R(q);
+			direction = R * matrix::Vector3f(0.0f, 0.0f, 1.0f);
+			in_range &= 0;
+		}
+		matrix::Vector3f relative_pos_sp = -direction * pos_sp_condition[R_max];
+
+		/*if current pos is not in right position -bdai<28 Nov 2016>*/
+		matrix::Vector3f err_sp = target_pos - pos_first_joint + relative_pos_sp;
+		if (err_sp.norm() > pos_sp_condition[R_min]) {
+			in_range &= 0<<2;
+			_pos_sp = _pos + math::Vector<3>(err_sp(0), err_sp(1), err_sp(2));
+		} else {
+	//		_pos_sp = _pos;
+		}
+
+		for (int i = 0; i < 3; i++){
+			if (_pos_sp(i) < ELEC_FENCE[i][MIN]){
+				_pos_sp(i) = ELEC_FENCE[i][MIN];
+				OUT_FENCE = true;
+			} else if (_pos_sp(i) > ELEC_FENCE[i][MAX]){
+				_pos_sp(i) = ELEC_FENCE[i][MAX];
+				OUT_FENCE = true;
+			}
+		}
+
+		/*calculate yaw  -bdai<17 Nov 2016>*/
+
+		direction = (target_pos - pos).normalized();
+		/*if there are too close with target -bdai<17 Nov 2016>*/
+		if (math::Vector<3>(direction(0), direction(1), 0).length() > sinf(15 * DEG2RAD)) {
+			_att_sp.yaw_body = atan2f(direction(1), direction(0));
+		}
+
+		print_info(print, &mavlink_log_pub, "pos_ x:%8.3f, y:%8.3f, z:%8.3f",
+					(double)pos(0), (double)pos(1), (double)pos(2));
+		print_info(print, &mavlink_log_pub, "targ x:%8.3f, y:%8.3f, z:%8.3f",
+					(double)target_pos(0), (double)target_pos(1), (double)target_pos(2));
+		print_info(print, &mavlink_log_pub, "p_sp x:%8.3f, y:%8.3f, z:%8.3f, yaw:%8.3f",
+				(double)_pos_sp(0), (double)_pos_sp(1), (double)_pos_sp(2),
+				(double)_att_sp.yaw_body);
+
+		print_info(print, &mavlink_log_pub, "in_range:%d, relpos x:%8.4f, y:%8.4f, z:%8.4f, angle:%8.4f",
+					in_range,
+					(double)relative_pos_sp(0), (double)relative_pos_sp(1), (double)relative_pos_sp(2),
+					(double)(atanf(fabs(relative_pos_sp(2) / relative_pos_sp(0))) / DEG2RAD));
+	/*original code  -bdai<1 Nov 2016>*/
+	#else
 
 	//Poll position setpoint
 	bool updated;
@@ -1898,6 +2034,7 @@ void MulticopterPositionControl::control_auto(float dt)
 	} else {
 		/* no waypoint, do nothing, setpoint was already reset */
 	}
+#endif
 }
 
 void
@@ -1921,6 +2058,7 @@ MulticopterPositionControl::task_main()
 	_global_vel_sp_sub = orb_subscribe(ORB_ID(vehicle_global_velocity_setpoint));
 	_angacc_acc_sub = orb_subscribe(ORB_ID(angacc_acc));
 	_battery_status_sub = orb_subscribe(ORB_ID(battery_status));
+	_target_sub = orb_subscribe(ORB_ID(target_info));
 
 	parameters_update(true);
 
@@ -1945,6 +2083,8 @@ MulticopterPositionControl::task_main()
 	pos_err_i.zero();
 	math::Vector<3> thrust_int;
 	thrust_int.zero();
+	math::Vector<3> vel_ff;
+	vel_ff.zero();
 
 	// Let's be safe and have the landing gear down by default
 	_att_sp.landing_gear = -1.0f;
@@ -2074,6 +2214,7 @@ MulticopterPositionControl::task_main()
 			 * can disable this and run velocity controllers directly in this cycle */
 			_run_pos_control = true;
 			_run_alt_control = true;
+			OUT_FENCE = false;
 
 			/* select control source */
 			if (_control_mode.flag_control_manual_enabled) {
@@ -2088,6 +2229,7 @@ MulticopterPositionControl::task_main()
 			} else {
 				/* AUTO */
 				control_auto(dt);
+				_target_updated = false;
 			}
 
 			/* weather-vane mode for vtol: disable yaw control */
@@ -2161,6 +2303,17 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = pos_err(1) * _params.pos_p(1) + _pos_err_d(1) * _params.pos_d(1) +  pos_err_i(1);
 					// PX4_INFO("XY PID: %4.4f,%4.4f,%4.4f",(double)_params.pos_p(0),(double)_params.pos_i(0),(double)_params.pos_d(0));
 
+					/*gyzhang <Jul 11, 2017>*/
+					if (_mode_auto ==  true && OUT_FENCE == false && FOLLOW_MODE == true){
+						vel_ff(0) = _target.vx;
+						vel_ff(1) = _target.vy;
+					} else {
+						vel_ff(0) = 0;
+						vel_ff(1) = 0;
+					}
+					_vel_sp(0) = _vel_sp(0) + vel_ff(0);
+					_vel_sp(1) = _vel_sp(1) + vel_ff(1);
+
 					if (statu != DISABLE){
 						_vel_sp(0) += next._vel(0);
 						_vel_sp(1) += next._vel(1);
@@ -2211,6 +2364,14 @@ MulticopterPositionControl::task_main()
 					// _vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
 					_vel_sp(2) = pos_err(2) * _params.pos_p(2) + _pos_err_d(2) * _params.pos_d(2) + pos_err_i(2);
 					// PX4_INFO("Z PID: %4.4f,%4.4f,%4.4f",(double)_params.pos_p(2),(double)_params.pos_i(2),(double)_params.pos_d(2));
+
+					/*gyzhang <Jul 11, 2017>*/
+					if (_mode_auto ==  true && OUT_FENCE == false && FOLLOW_MODE == true){
+						vel_ff(2) = _target.vz;
+					} else {
+						vel_ff(2) = 0;
+					}
+					_vel_sp(2) = _vel_sp(2) + vel_ff(2);
 
 					if (statu != DISABLE){
 						_vel_sp(2) += next._vel(2);
