@@ -660,7 +660,19 @@ struct log_ACCF_s {
 	uint8_t saturation;
 };
 
-
+/* --- MANIPULATOR - COM --- */
+#define LOG_MCOM_MSG 74
+struct log_MCOM_s {
+	float x;
+	float y;
+	float z;
+	float vx;
+	float vy;
+	float vz;
+	float accx;
+	float accy;
+	float accz;
+};
 
 /* --- TARGET - INFORMATION --- */
 // gyzhang
@@ -679,7 +691,7 @@ struct log_TARI_s {
 
 /*-----TARGET (REFERENCE) ENDEFF FRAME STATUS----*/
 // By gyzhang
-#define LOG_EFFR_MSG 71
+#define LOG_EFFR_MSG 76
 struct log_EFFR_s {
 	uint8_t arm_enable;
 	float x;
@@ -863,6 +875,7 @@ static const struct log_format_s log_formats[] = {
 
 
 	// By gyzhang
+	LOG_FORMAT(MOCV, "fffffffff", "X,Y,Z,Vx,Vy,Vz,Ax,Ay,Az"),
 	LOG_FORMAT(TARI, "fffffffff", "Tx,Ty,Tz,Tvx,Tvy,Tvz,Troll,Tpitch,Tyaw"),
 	LOG_FORMAT(EFFR, "Bffffffffffff","Arme,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
 	LOG_FORMAT(EFFS, "Bbfffffffffffff","Arme,Gs,Gp,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),

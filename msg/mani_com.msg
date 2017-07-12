@@ -1,0 +1,9 @@
+ float32 x # X pos of the CoM in m in the body-fixed frame
+ float32 y # Y pos of the CoM in m in the body-fixed frame
+ float32 z # Z pos of the CoM in m in the body-fixed frame
+ float32 vx # X vel of the CoM in m/s in the body-fixed frame
+ float32 vy # Y vel of the CoM in m/s in the body-fixed frame
+ float32 vz # Z vel of the CoM in m/s in the body-fixed frame
+ float32 accx # X acc of the CoM in m/s^2 in the body-fixed frame
+ float32 accy # Y acc of the CoM in m/s^2 in the body-fixed frame
+ float32 accz # Z acc of the CoM in m/s^2 in the body-fixed frame

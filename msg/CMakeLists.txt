@@ -138,6 +138,7 @@ set(msg_file_names
 	endeff_frame_status.msg
 	target_info.msg
 	coupling_force.msg
+	mani_com.msg
 
 	)
 

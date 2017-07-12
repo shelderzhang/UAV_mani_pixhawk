@@ -124,8 +124,8 @@
 #include <uORB/topics/target_endeff_frame.h>
 #include <uORB/topics/manipulator_joint_status.h>
 #include <uORB/topics/target_info.h>
-/* store manipulator */
 #include <uORB/topics/coupling_force.h>
+#include <uORB/topics/mani_com.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1251,6 +1251,7 @@ int sdlog2_thread_main(int argc, char *argv[]) {
 		struct endeff_frame_status_s endeff_frame_status;
 		struct manipulator_joint_status_s manipulator_joint_status;
 		struct coupling_force_s coup_force;
+		struct mani_com_s mani_com;
 
 	} buf;
 
@@ -1329,6 +1330,7 @@ int sdlog2_thread_main(int argc, char *argv[]) {
 			struct log_EFFS_s log_EFFS;
 			struct log_MANJ_s log_MANJ;
 			struct log_CFOR_s log_CFOR;
+			struct log_MCOM_s log_MCOM;
 
 
 		} body;
@@ -1393,6 +1395,7 @@ int sdlog2_thread_main(int argc, char *argv[]) {
 		int endeff_frame_status_sub;
 		int manipulator_joint_status_sub;
 		int coup_force_sub;
+		int mani_com_sub;
 
 
 	} subs;
@@ -1445,12 +1448,13 @@ int sdlog2_thread_main(int argc, char *argv[]) {
 	subs.angacc_acc_sub = -1;
 	subs.angacc_ff_sub = -1;
 	subs.acc_ff_sub = -1;
+	subs.att_pos_vel_mocap_sub = -1;
 	subs.tari_sub = -1;
 	subs.target_endeff_frame_sub = -1;
 	subs.endeff_frame_status_sub = -1;
 	subs.manipulator_joint_status_sub = -1;
 	subs.coup_force_sub = -1;
-	subs.att_pos_vel_mocap_sub = -1;
+	subs.mani_com_sub = -1;
 
 	for (unsigned i = 0; i < ORB_MULTI_MAX_INSTANCES; i++) {
 		subs.telemetry_subs[i] = -1;
@@ -2751,6 +2755,21 @@ int sdlog2_thread_main(int argc, char *argv[]) {
 			log_msg.body.log_CFOR.moment_y = buf.coup_force.moment_y;
 			log_msg.body.log_CFOR.moment_z = buf.coup_force.moment_z;
 			LOGBUFFER_WRITE_AND_COUNT(CFOR);
+		}
+		/* --- TARGET INFORMATION --- */
+		if (copy_if_updated(ORB_ID(mani_com), &subs.mani_com_sub,
+				&buf.mani_com)) {
+			log_msg.msg_type = LOG_MCOM_MSG;
+			log_msg.body.log_MCOM.x = buf.mani_com.x;
+			log_msg.body.log_MCOM.y = buf.mani_com.y;
+			log_msg.body.log_MCOM.z = buf.mani_com.z;
+			log_msg.body.log_MCOM.vx = buf.mani_com.vx;
+			log_msg.body.log_MCOM.vy = buf.mani_com.vy;
+			log_msg.body.log_MCOM.vz = buf.mani_com.vz;
+			log_msg.body.log_MCOM.accx = buf.mani_com.accx;
+			log_msg.body.log_MCOM.accy = buf.mani_com.accy;
+			log_msg.body.log_MCOM.accz = buf.mani_com.accz;
+			LOGBUFFER_WRITE_AND_COUNT(MCOM);
 		};
 		pthread_mutex_lock(&logbuffer_mutex);
 

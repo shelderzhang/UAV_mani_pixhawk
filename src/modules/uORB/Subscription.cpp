@@ -74,6 +74,7 @@
 #include <uORB/topics/coupling_force.h>
 #include <uORB/topics/att_pos_vel_mocap.h>
 #include <uORB/topics/target_info.h>
+#include <uORB/topics/mani_com.h>
 
 #include <px4_defines.h>
 
@@ -200,5 +201,6 @@ template class __EXPORT Subscription<manipulator_joint_status_s>;
 template class __EXPORT Subscription<coupling_force_s>;
 template class __EXPORT Subscription<endeff_frame_status_s>;
 template class __EXPORT Subscription<att_pos_vel_mocap_s>;
+template class __EXPORT Subscription<mani_com_s>;
 
 } // namespace uORB
