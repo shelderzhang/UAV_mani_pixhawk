@@ -113,12 +113,13 @@ void BlockManipulatorControl::control()
 		/*gyzhang <Jul 8, 2017>*/
 		Quatf q_att = _att_sub.get().q;
 		Matrix3f R_att=q_att.to_dcm();
+		Matrix3f RT_att = R_att.transpose();
 		Vector3f distance = R_att.transpose() * (target_pos - pos) - MANI_OFFSET - MANI_FIRST_JOINT;
 		Vector3f mani_sp(distance);
-		print_info(print, &mavlink_log_pub, "distance x:%8.4f, y:%8.4f, z:%8.4f",
-				(double)distance(0),
-				(double)distance(1),
-				(double)distance(2));
+//		print_info(print, &mavlink_log_pub, "distance x:%8.4f, y:%8.4f, z:%8.4f",
+//				(double)distance(0),
+//				(double)distance(1),
+//				(double)distance(2));
 
 		_in_range = 0;
 		/*when target is in range between two  -bdai<16 Nov 2016>*/
@@ -237,7 +238,10 @@ void BlockManipulatorControl::control()
 		{
 			distance = mani_sp - MANI_FIRST_JOINT;
 			Vector3f R_z(-distance.normalized());
-			Vector3f R_x = (Vector3f(.0f, .0f, 1.0f) % R_z).normalized();
+//			Vector3f R_x = (Vector3f(.0f, .0f, 1.0f) % R_z).normalized();
+			/*fix the y axis of the frame in the direction to earth gyzhang <Jul 11, 2017>*/
+			Vector3f R_x = (Vector3f(RT_att(2,1), RT_att(2,3), RT_att(2,3)) % R_z).normalized();
+
 			if (R_z(2) < sinf(GRAPPER_ANGLE_RANGE[0])) {
 				Quatf q;
 				q.from_axis_angle(R_x, (float)M_PI / 2.0f - GRAPPER_ANGLE_RANGE[0]);
