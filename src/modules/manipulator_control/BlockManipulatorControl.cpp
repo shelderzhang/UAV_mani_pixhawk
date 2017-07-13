@@ -240,7 +240,7 @@ void BlockManipulatorControl::control()
 			Vector3f R_z(-distance.normalized());
 //			Vector3f R_x = (Vector3f(.0f, .0f, 1.0f) % R_z).normalized();
 			/*fix the y axis of the frame in the direction to earth gyzhang <Jul 11, 2017>*/
-			Vector3f R_x = (Vector3f(RT_att(2,1), RT_att(2,3), RT_att(2,3)) % R_z).normalized();
+			Vector3f R_x = (Vector3f(RT_att(2,0), RT_att(2,1), RT_att(2,2)) % R_z).normalized();
 
 			if (R_z(2) < sinf(GRAPPER_ANGLE_RANGE[0])) {
 				Quatf q;
