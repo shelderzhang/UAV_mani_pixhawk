@@ -61,7 +61,7 @@ manipulator_control start
 mavlink stop-all
 #mavlink start -d /dev/ttyS1 -b 57600
 mavlink start -d /dev/ttyS2 -b 57600 -m custom
-#mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
+mavlink start -r 800000 -d /dev/ttyACM0 -m config -x
 
 mavlink start -d /dev/ttyS6 -b 57600 -m custom
 mavlink stream -d /dev/ttyS6 -s TARGET_ENDEFF_FRAME -r 25
