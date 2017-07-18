@@ -134,7 +134,10 @@ set(config_module_list
 	
 	# For Coupling Force Sensor data
 	modules/coupling_force
-
+	
+	# For Calculate the CoM of the Aerial Manipulator
+	modules/manipulator_com_est
+	
 	#
 	# Libraries
 	#
