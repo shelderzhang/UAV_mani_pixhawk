@@ -24,7 +24,7 @@ enum {R_MIN = 0, R_MAX, THETA_MIN, THETA_MAX, PSI_MIN, PSI_MAX};
 /*relative rest duration before start grabbing 0.5s -bdai<13 Nov 2016>*/
 static uint32_t REST_DURATION = 80000;	// 0.08 s
 static float ACCURACY = 0.03f;	//grab demand 0.05m accuracy
-static orb_advert_t mavlink_log_pub = nullptr;
+//static orb_advert_t mavlink_log_pub = nullptr;
 /*used for manipulator velocity cointrol -bdai<19 Nov 2016>*/
 static float MANI_P = 1.0f;
 static float MANI_MAX_VEL = 0.05f;
@@ -101,14 +101,14 @@ void BlockManipulatorControl::control()
 		Vector3f target_pos(_target_sub.get().x, _target_sub.get().y, _target_sub.get().z);
 //		target_pos = Vector3f(0.25f, 0.0f, 0.5f); //for debug
 
-		print_info(print, &mavlink_log_pub, "pos x:%8.4f, y:%8.4f, z:%8.4f",
-					(double)pos(0),
-					(double)pos(1),
-					(double)pos(2));
-		print_info(print, &mavlink_log_pub, "target x:%8.4f, y:%8.4f, z:%8.4f",
-			(double)target_pos(0),
-			(double)target_pos(1),
-			(double)target_pos(2));
+//		print_info(print, &mavlink_log_pub, "pos x:%8.4f, y:%8.4f, z:%8.4f",
+//					(double)pos(0),
+//					(double)pos(1),
+//					(double)pos(2));
+//		print_info(print, &mavlink_log_pub, "target x:%8.4f, y:%8.4f, z:%8.4f",
+//			(double)target_pos(0),
+//			(double)target_pos(1),
+//			(double)target_pos(2));
 
 		/*gyzhang <Jul 8, 2017>*/
 		Quatf q_att = _att_sub.get().q;
@@ -184,7 +184,7 @@ void BlockManipulatorControl::control()
 		/*first joint offset -gyzhang<8 Apr. 2017>*/
 		mani_sp = mani_sp + MANI_FIRST_JOINT;
 
-		print_info(print, &mavlink_log_pub, "_in_range: %d", _in_range);
+//		print_info(print, &mavlink_log_pub, "_in_range: %d", _in_range);
 		if (_in_range == 7){
 
 			float mani_error = Vector3f(mani_sp(0) - _mani_status_sub.get().x,
@@ -307,14 +307,14 @@ void BlockManipulatorControl::control()
 	_manip_pub.get().timestamp = _timeStamp;
 	_manip_pub.update();
 
-	print_info(print, &mavlink_log_pub, "x %8.4f, y %8.4f, z %8.4f, roll %8.4f, pitch %8.4f, yaw %8.4f, arm_enable %d",
-				(double)_manip_pub.get().x,
-				(double)_manip_pub.get().y,
-				(double)_manip_pub.get().z,
-				(double)_manip_pub.get().roll,
-				(double)_manip_pub.get().pitch,
-				(double)_manip_pub.get().yaw,
-				_manip_pub.get().arm_enable);
+//	print_info(print, &mavlink_log_pub, "x %8.4f, y %8.4f, z %8.4f, roll %8.4f, pitch %8.4f, yaw %8.4f, arm_enable %d",
+//				(double)_manip_pub.get().x,
+//				(double)_manip_pub.get().y,
+//				(double)_manip_pub.get().z,
+//				(double)_manip_pub.get().roll,
+//				(double)_manip_pub.get().pitch,
+//				(double)_manip_pub.get().yaw,
+//				_manip_pub.get().arm_enable);
 }
 
 void BlockManipulatorControl::mani_init_position()
