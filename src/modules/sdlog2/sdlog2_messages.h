@@ -875,7 +875,7 @@ static const struct log_format_s log_formats[] = {
 
 
 	// By gyzhang
-	LOG_FORMAT(MOCV, "fffffffff", "X,Y,Z,Vx,Vy,Vz,Ax,Ay,Az"),
+	LOG_FORMAT(MCOM, "fffffffff", "X,Y,Z,Vx,Vy,Vz,Ax,Ay,Az"),
 	LOG_FORMAT(TARI, "fffffffff", "Tx,Ty,Tz,Tvx,Tvy,Tvz,Troll,Tpitch,Tyaw"),
 	LOG_FORMAT(EFFR, "Bffffffffffff","Arme,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
 	LOG_FORMAT(EFFS, "Bbfffffffffffff","Arme,Gs,Gp,x,y,z,vx,vy,vz,R,P,Y,vR,vP,vY"),
