@@ -32,7 +32,7 @@ using namespace control;
 
 typedef SquareMatrix<float, 4> Matrix4f;
 
-extern orb_advert_t mavlink_log_pub;
+//extern orb_advert_t mavlink_log_pub;
 extern "C" __EXPORT int manipulator_com_est_main(int argc, char *argv[]);
 
 struct DH_params_s {
