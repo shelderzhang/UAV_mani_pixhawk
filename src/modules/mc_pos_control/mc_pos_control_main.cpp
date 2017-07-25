@@ -114,7 +114,7 @@ static float ELEC_FENCE[3][2] = {-2.5f, 2.5f, -2.5f, 2.5f, -0.45f -2.0f};
 static bool OUT_FENCE = false;
 /*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
 static bool FOLLOW_MODE = true;
-static float pos_sp_condition[4] = { 0.4f, 0.03f,
+static float pos_sp_condition[4] = { 0.43f, 0.02f,
 		30.0f * DEG2RAD, 45.0f * DEG2RAD};
 enum {R_max = 0, R_min, ANGLE_MIN, ANGLE_MAX};
 enum {MIN = 0, MAX};
@@ -560,18 +560,18 @@ enum shapes {
 	SHAPE_S,	// shape of SSS
 };
 
-static Path* get_path(shapes shape, float vel = .0f){
-	Path* path;
-	switch(shape) {
-	case POINT: path = new Path_Point(); break;
-	case LINES:	path = new Path_Lines(vel); break;
-	case SINS:  path = new Path_Sins(vel); break;
-	case CICLES:	path = new Path_Cicles(vel); break;
-	case SHAPE_S:	path = new Path_Shape_S(vel); break;
-	default:path = nullptr; break;
-	}
-	return path;
-};
+//static Path* get_path(shapes shape, float vel = .0f){
+//	Path* path;
+//	switch(shape) {
+//	case POINT: path = new Path_Point(); break;
+//	case LINES:	path = new Path_Lines(vel); break;
+//	case SINS:  path = new Path_Sins(vel); break;
+//	case CICLES:	path = new Path_Cicles(vel); break;
+//	case SHAPE_S:	path = new Path_Shape_S(vel); break;
+//	default:path = nullptr; break;
+//	}
+//	return path;
+//};
 }
 
 enum status {
@@ -1473,151 +1473,237 @@ MulticopterPositionControl::control_manual(float dt)
 		}
 	}
 
-	if (_control_mode.flag_control_altitude_enabled &&_control_mode.flag_control_position_enabled) {
+//	if (_control_mode.flag_control_altitude_enabled &&_control_mode.flag_control_position_enabled) {
 
-		hrt_abstime now = hrt_absolute_time();
-		static hrt_abstime last_pause_stamp = now;
+//		hrt_abstime now = hrt_absolute_time();
+//		static hrt_abstime last_pause_stamp = now;
+//
+//		static float path_time = 0.0f;
+//		static float path_over_time = 0.0f;
+//		static status last_statu = statu;
+//		last_statu = statu;
+//		if (true/*_manual.aux3 < -0.5f*/) {
+//			path_over_time = path_time = 0.0f;
+//			last_pause_stamp = now;
+//			statu = DISABLE;
+//		}else if (_manual.aux3 < 0.5f || manual_loss){
+//			path_over_time = path_time;
+//			last_pause_stamp = now;
+//			statu = PAUSE;
+//		}else {
+//			statu = FOLLOWING;
+//			path_time = path_over_time + (now - last_pause_stamp)*1.0e-6f;
+//		}
+//
+//		if (statu != DISABLE) {
+//			// get the path at the first time
+//			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::POINT);;
+//			if (last_statu == DISABLE && _path_type.get() != Path_Tracking::POINT)
+//				path = Path_Tracking::get_path((Path_Tracking::shapes)_path_type.get(), 0.5f);
+//
+//			int ret = path->get_next(path_time, next);
+//			if (statu == PAUSE) next._vel.zero();
+//			// else PX4_INFO("dt: %8.4f, %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", (double)path_time,
+//			// 		(double)_pos_sp(0),(double)_pos_sp(1),(double)_pos_sp(2),
+//			// 		(double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
+//			_pos_sp = next._pos;
+//
+//			if(ret == 0) return;
+//		}
+//
+//		// if switch back to disable
+//		if (last_statu != DISABLE) {
+//			_reset_pos_sp = true;
+//			_reset_alt_sp = true;
+//		}
+//	}
 
-		static float path_time = 0.0f;
-		static float path_over_time = 0.0f;
-		static status last_statu = statu;
-		last_statu = statu;
-		if (true/*_manual.aux3 < -0.5f*/) {
-			path_over_time = path_time = 0.0f;
-			last_pause_stamp = now;
-			statu = DISABLE;
-		}else if (_manual.aux3 < 0.5f || manual_loss){
-			path_over_time = path_time;
-			last_pause_stamp = now;
-			statu = PAUSE;
-		}else {
-			statu = FOLLOWING;
-			path_time = path_over_time + (now - last_pause_stamp)*1.0e-6f;
+
+	if(_manual.aux3 > -0.5f && _control_mode.flag_control_altitude_enabled &&_control_mode.flag_control_position_enabled){
+
+		/*subscribe target position -bdai<1 Nov 2016>*/
+		matrix::Vector3f target_pos(_target.x, _target.y, _target.z);
+	//	matrix::Vector3f target_pos(0.0f, 0.0f, 0.0f);
+
+		matrix::Dcmf R_BN;
+		for (int i = 0; i < 3; i++){
+			for (int j = 0; j < 3; j++){
+				R_BN(i,j) = _R(i,j);
+			}
+		}
+		matrix::Vector3f pos(_pos(0), _pos(1), _pos(2));
+
+	//	matrix::Vector3f pos = matrix::Vector3f(1.5f, .0f, .0f);
+	//	Quatf qq;
+	//	qq.from_axis_angle(matrix::Vector3f(.0f, 1.0f, .0f), (now - first_time)*3.0f * DEG2RAD / 1.0e6f);
+	//	matrix::Dcmf RR(qq);
+	//	pos = RR * pos - R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);;
+
+		matrix::Vector3f pos_first_joint = pos +  R_BN * (MANI_FIRST_JOINT + MANI_OFFSET);
+
+		matrix::Vector3f direction = (target_pos - pos_first_joint).normalized();
+
+		matrix::Vector3f r = (matrix::Vector3f(0.0f, 0.0f, 1.0f) % direction).normalized();
+
+		int in_range = 7;
+
+		if (direction(2) < sinf(pos_sp_condition[ANGLE_MIN])) {
+			Quatf q;
+			q.from_axis_angle(r, (float)M_PI/2.0f - pos_sp_condition[ANGLE_MIN]);
+			matrix::Dcmf R(q);
+			direction = R * matrix::Vector3f(0.0f, 0.0f, 1.0f);
+			in_range &= 0<<1;
+		} else if (direction(2) > sinf(pos_sp_condition[ANGLE_MAX])){
+			Quatf q;
+			q.from_axis_angle(r, (float)M_PI/2.0f - pos_sp_condition[ANGLE_MAX]);
+			matrix::Dcmf R(q);
+			direction = R * matrix::Vector3f(0.0f, 0.0f, 1.0f);
+			in_range &= 0;
+		}
+		matrix::Vector3f relative_pos_sp = -direction * pos_sp_condition[R_max];
+
+		/*if current pos is not in right position -bdai<28 Nov 2016>*/
+		matrix::Vector3f err_sp = target_pos - pos_first_joint + relative_pos_sp;
+		if (err_sp.norm() > pos_sp_condition[R_min]) {
+			in_range &= 0<<2;
+			_pos_sp = _pos + math::Vector<3>(err_sp(0), err_sp(1), err_sp(2));
+		} else {
+	//		_pos_sp = _pos;
 		}
 
-		if (statu != DISABLE) {
-			// get the path at the first time
-			static Path_Tracking::Path* path = Path_Tracking::get_path(Path_Tracking::POINT);;
-			if (last_statu == DISABLE && _path_type.get() != Path_Tracking::POINT) 
-				path = Path_Tracking::get_path((Path_Tracking::shapes)_path_type.get(), 0.5f);
-			
-			int ret = path->get_next(path_time, next);
-			if (statu == PAUSE) next._vel.zero();
-			// else PX4_INFO("dt: %8.4f, %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f", (double)path_time,
-			// 		(double)_pos_sp(0),(double)_pos_sp(1),(double)_pos_sp(2),
-			// 		(double)next._vel(0),(double)next._vel(1),(double)next._vel(2));
-			_pos_sp = next._pos;
-			
-			if(ret == 0) return;
+		for (int i = 0; i < 3; i++){
+			if (_pos_sp(i) < ELEC_FENCE[i][MIN]){
+				_pos_sp(i) = ELEC_FENCE[i][MIN];
+				OUT_FENCE = true;
+			} else if (_pos_sp(i) > ELEC_FENCE[i][MAX]){
+				_pos_sp(i) = ELEC_FENCE[i][MAX];
+				OUT_FENCE = true;
+			}
 		}
 
-		// if switch back to disable
-		if (last_statu != DISABLE) {
-			_reset_pos_sp = true;
-			_reset_alt_sp = true;
+		/*calculate yaw  -bdai<17 Nov 2016>*/
+
+		direction = (target_pos - pos).normalized();
+		/*if there are too close with target -bdai<17 Nov 2016>*/
+		if (math::Vector<3>(direction(0), direction(1), 0).length() > sinf(15 * DEG2RAD)) {
+			float yaw_sp = atan2f(direction(1), direction(0));
+			static float yaw_sp_last = yaw_sp;
+
+			PX4_INFO("yaw_err: %8.4f",(double)fabsf((yaw_sp -_yaw) / DEG2RAD));
+			if (fabsf(yaw_sp -_yaw) > 10.0f * DEG2RAD) {
+				yaw_sp = _yaw + (yaw_sp -_yaw) / fabsf(yaw_sp -_yaw) * 5.0f * DEG2RAD;
+			} else if(fabsf(yaw_sp -_yaw) > 5.0f * DEG2RAD){
+				yaw_sp = yaw_sp - (yaw_sp -_yaw) / fabsf(yaw_sp -_yaw) * 5.0f * DEG2RAD;
+			} else {
+				yaw_sp = yaw_sp_last;
+			}
+			_att_sp.yaw_body = yaw_sp_last = yaw_sp;
+			PX4_INFO("yaw_sp: %8.4f, _yaw:%8.4f",(double)(yaw_sp / DEG2RAD), (double)(_yaw / DEG2RAD));
 		}
 	}
+	else {
 
-	statu = DISABLE; //no path
-	math::Vector<3> req_vel_sp; // X,Y in local frame and Z in global (D), in [-1,1] normalized range
-	req_vel_sp.zero();
+		statu = DISABLE; //no path
+		math::Vector<3> req_vel_sp; // X,Y in local frame and Z in global (D), in [-1,1] normalized range
+		req_vel_sp.zero();
 
-	if (_control_mode.flag_control_altitude_enabled) {
-		/* set vertical velocity setpoint with throttle stick */
-		req_vel_sp(2) = -scale_control(_manual.z - 0.5f, 0.5f, _params.alt_ctl_dz, _params.alt_ctl_dy); // D
-	}
+		if (_control_mode.flag_control_altitude_enabled) {
+			/* set vertical velocity setpoint with throttle stick */
+			req_vel_sp(2) = -scale_control(_manual.z - 0.5f, 0.5f, _params.alt_ctl_dz, _params.alt_ctl_dy); // D
+		}
 
-	if (_control_mode.flag_control_position_enabled) {
-		/* set horizontal velocity setpoint with roll/pitch stick */
-		req_vel_sp(0) = _manual.x;
-		req_vel_sp(1) = _manual.y;
-	}
+		if (_control_mode.flag_control_position_enabled) {
+			/* set horizontal velocity setpoint with roll/pitch stick */
+			req_vel_sp(0) = _manual.x;
+			req_vel_sp(1) = _manual.y;
+		}
 
-	if (_control_mode.flag_control_altitude_enabled) {
-		/* reset alt setpoint to current altitude if needed */
-		reset_alt_sp();
-	}
+		if (_control_mode.flag_control_altitude_enabled) {
+			/* reset alt setpoint to current altitude if needed */
+			reset_alt_sp();
+		}
 
-	if (_control_mode.flag_control_position_enabled) {
-		/* reset position setpoint to current position if needed */
-		reset_pos_sp();
-	}
+		if (_control_mode.flag_control_position_enabled) {
+			/* reset position setpoint to current position if needed */
+			reset_pos_sp();
+		}
 
-	/* limit velocity setpoint */
-	float req_vel_sp_norm = req_vel_sp.length();
+		/* limit velocity setpoint */
+		float req_vel_sp_norm = req_vel_sp.length();
 
-	if (req_vel_sp_norm > 1.0f) {
-		req_vel_sp /= req_vel_sp_norm;
-	}
+		if (req_vel_sp_norm > 1.0f) {
+			req_vel_sp /= req_vel_sp_norm;
+		}
 
-	/* _req_vel_sp scaled to 0..1, scale it to max speed and rotate around yaw */
-	math::Matrix<3, 3> R_yaw_sp;
-	R_yaw_sp.from_euler(0.0f, 0.0f, _att_sp.yaw_body);
-	math::Vector<3> req_vel_sp_scaled = R_yaw_sp * req_vel_sp.emult(
-			_params.vel_cruise); // in NED and scaled to actual velocity
+		/* _req_vel_sp scaled to 0..1, scale it to max speed and rotate around yaw */
+		math::Matrix<3, 3> R_yaw_sp;
+		R_yaw_sp.from_euler(0.0f, 0.0f, _att_sp.yaw_body);
+		math::Vector<3> req_vel_sp_scaled = R_yaw_sp * req_vel_sp.emult(
+				_params.vel_cruise); // in NED and scaled to actual velocity
 
-	/*
-	 * assisted velocity mode: user controls velocity, but if	velocity is small enough, position
-	 * hold is activated for the corresponding axis
-	 */
+		/*
+		 * assisted velocity mode: user controls velocity, but if	velocity is small enough, position
+		 * hold is activated for the corresponding axis
+		 */
 
-	/* horizontal axes */
-	if (_control_mode.flag_control_position_enabled) {
-		/* check for pos. hold */
-		if (fabsf(req_vel_sp(0)) < _params.hold_xy_dz && fabsf(req_vel_sp(1)) < _params.hold_xy_dz) {
+		/* horizontal axes */
+		if (_control_mode.flag_control_position_enabled) {
+			/* check for pos. hold */
+			if (fabsf(req_vel_sp(0)) < _params.hold_xy_dz && fabsf(req_vel_sp(1)) < _params.hold_xy_dz) {
+				if (!_pos_hold_engaged) {
+
+					float vel_xy_mag = sqrtf(_vel(0) * _vel(0) + _vel(1) * _vel(1));
+
+					if (_params.hold_max_xy < FLT_EPSILON || vel_xy_mag < _params.hold_max_xy) {
+						/* reset position setpoint to have smooth transition from velocity control to position control */
+						_pos_hold_engaged = true;
+						_pos_sp(0) = _pos(0);
+						_pos_sp(1) = _pos(1);
+
+					} else {
+						_pos_hold_engaged = false;
+					}
+				}
+
+			} else {
+				_pos_hold_engaged = false;
+			}
+
+			/* set requested velocity setpoint */
 			if (!_pos_hold_engaged) {
+				_pos_sp(0) = _pos(0);
+				_pos_sp(1) = _pos(1);
+				_run_pos_control = false; /* request velocity setpoint to be used, instead of position setpoint */
+				_vel_sp(0) = req_vel_sp_scaled(0);
+				_vel_sp(1) = req_vel_sp_scaled(1);
+			}
+		}
 
-				float vel_xy_mag = sqrtf(_vel(0) * _vel(0) + _vel(1) * _vel(1));
+		/* vertical axis */
+		if (_control_mode.flag_control_altitude_enabled) {
+			/* check for pos. hold */
+			if (fabsf(req_vel_sp(2)) < FLT_EPSILON) {
+				if (!_alt_hold_engaged) {
+					if (_params.hold_max_z < FLT_EPSILON || fabsf(_vel(2)) < _params.hold_max_z) {
+						/* reset position setpoint to have smooth transition from velocity control to position control */
+						_alt_hold_engaged = true;
+						_pos_sp(2) = _pos(2);
 
-				if (_params.hold_max_xy < FLT_EPSILON || vel_xy_mag < _params.hold_max_xy) {
-					/* reset position setpoint to have smooth transition from velocity control to position control */
-					_pos_hold_engaged = true;
-					_pos_sp(0) = _pos(0);
-					_pos_sp(1) = _pos(1);
-
-				} else {
-					_pos_hold_engaged = false;
+					} else {
+						_alt_hold_engaged = false;
+					}
 				}
+
+			} else {
+				_alt_hold_engaged = false;
+				_pos_sp(2) = _pos(2);
 			}
 
-		} else {
-			_pos_hold_engaged = false;
-		}
-
-		/* set requested velocity setpoint */
-		if (!_pos_hold_engaged) {
-			_pos_sp(0) = _pos(0);
-			_pos_sp(1) = _pos(1);
-			_run_pos_control = false; /* request velocity setpoint to be used, instead of position setpoint */
-			_vel_sp(0) = req_vel_sp_scaled(0);
-			_vel_sp(1) = req_vel_sp_scaled(1);
-		}
-	}
-
-	/* vertical axis */
-	if (_control_mode.flag_control_altitude_enabled) {
-		/* check for pos. hold */
-		if (fabsf(req_vel_sp(2)) < FLT_EPSILON) {
+			/* set requested velocity setpoint */
 			if (!_alt_hold_engaged) {
-				if (_params.hold_max_z < FLT_EPSILON || fabsf(_vel(2)) < _params.hold_max_z) {
-					/* reset position setpoint to have smooth transition from velocity control to position control */
-					_alt_hold_engaged = true;
-					_pos_sp(2) = _pos(2);
-
-				} else {
-					_alt_hold_engaged = false;
-				}
+				_run_alt_control = false; /* request velocity setpoint to be used, instead of altitude setpoint */
+				_vel_sp(2) = req_vel_sp_scaled(2);
 			}
-
-		} else {
-			_alt_hold_engaged = false;
-			_pos_sp(2) = _pos(2);
-		}
-
-		/* set requested velocity setpoint */
-		if (!_alt_hold_engaged) {
-			_run_alt_control = false; /* request velocity setpoint to be used, instead of altitude setpoint */
-			_vel_sp(2) = req_vel_sp_scaled(2);
 		}
 	}
 }
@@ -2789,9 +2875,9 @@ MulticopterPositionControl::task_main()
 							pretimeStamp = timeNow;
 							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
 
-							float hovering_thrust = -0.058f * _battery_status.voltage_filtered_v + 1.23f;
+							float hovering_thrust = -0.02875f * _battery_status.voltage_filtered_v + 1.3509f;
 							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(hovering_thrust / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
-
+							ff_delta(2) = ff_delta(2) / _acc_ff_a.get() * 2.0f;
 //							mavlink_log_critical(&_mavlink_log_pub, "ff_delta:%8.4f, %8.4f, %8.4f",(double)ff_delta(0),
 //									(double)ff_delta(1),(double)ff_delta(2));
 //
