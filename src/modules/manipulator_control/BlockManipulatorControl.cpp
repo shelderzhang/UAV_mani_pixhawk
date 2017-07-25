@@ -91,7 +91,7 @@ void BlockManipulatorControl::control()
 	// get new data
 	updateSubscriptions();
 
-	bool enableMani = (_manual_sub.get().flaps > 0.75f);
+	bool enableMani = (_manual_sub.get().aux3 > 0.5f);
 //	enableMani = true; //for debug
 
 	if (enableMani) {
@@ -238,9 +238,9 @@ void BlockManipulatorControl::control()
 		{
 			distance = mani_sp - MANI_FIRST_JOINT;
 			Vector3f R_z(-distance.normalized());
-//			Vector3f R_x = (Vector3f(.0f, .0f, 1.0f) % R_z).normalized();
+			Vector3f R_x = (Vector3f(.0f, .0f, 1.0f) % R_z).normalized();
 			/*fix the y axis of the frame in the direction to earth gyzhang <Jul 11, 2017>*/
-			Vector3f R_x = (Vector3f(RT_att(2,0), RT_att(2,1), RT_att(2,2)) % R_z).normalized();
+//			Vector3f R_x = (Vector3f(RT_att(2,0), RT_att(2,1), RT_att(2,2)) % R_z).normalized();
 
 			if (R_z(2) < sinf(GRAPPER_ANGLE_RANGE[0])) {
 				Quatf q;
@@ -280,9 +280,9 @@ void BlockManipulatorControl::control()
 
 		//grab success
 		if (_mani_status_sub.get().gripper_status == -1) {
-			_manip_pub.get().z = _manip_pub.get().z - 0.12f;
-			if (_manip_pub.get().z < 0.05f) {
-				_manip_pub.get().z = 0.05f;
+			_manip_pub.get().z = _manip_pub.get().z - 0.15f;
+			if (_manip_pub.get().z < 0.04f) {
+				_manip_pub.get().z = 0.04f;
 			}
 			_manip_pub.get().arm_enable = 1;
 

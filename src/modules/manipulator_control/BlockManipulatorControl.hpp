@@ -34,7 +34,7 @@ using namespace control;
 	}\
 }
 
-static Vector3f MANI_OFFSET(-0.021f, 0.001f, 0.193f);
+static Vector3f MANI_OFFSET(-0.028f, -0.005f, 0.158f);
 static Vector3f MANI_FIRST_JOINT(0, 0, 0.109);
 
 class BlockManipulatorControl : public control::SuperBlock
