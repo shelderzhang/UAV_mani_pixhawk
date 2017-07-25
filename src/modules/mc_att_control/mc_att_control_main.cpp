@@ -911,7 +911,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 				pretimeStamp = timeNow;
 				math::Vector<3> angacc(_angacc_acc.ang_acc_x, _angacc_acc.ang_acc_y, _angacc_acc.ang_acc_z);
 
-				math::Vector<3> thrust_offset(0.002f, -0.0045f, -0.02f);
+				math::Vector<3> thrust_offset(0.003f, 0.055f, 0.055f);
 				math::Vector<3> ff_delta =  (pre_torque_sp - thrust_offset - _params.inertial * angacc * _params.ff_inertial_gain) * (_params.ff_angacc_a * dt_ang_ff);
 				// results in FMU busy
 //				mavlink_and_console_log_info(&_mavlink_log_pub, "torque_sp:%8.4f, %8.4f, %8.4f",(double)(pre_torque_sp - thrust_offset)(0),
