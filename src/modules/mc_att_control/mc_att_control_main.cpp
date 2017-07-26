@@ -83,6 +83,8 @@
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/angacc_acc.h>
 #include <uORB/topics/angacc_ff.h>
+#include <uORB/topics/mani_com.h>
+
 
 #include <systemlib/mavlink_log.h>
 #include <systemlib/param/param.h>
@@ -112,7 +114,8 @@ extern "C" __EXPORT int mc_att_control_main(int argc, char *argv[]);
 #define AXIS_INDEX_YAW 2
 #define AXIS_COUNT 3
 
-#define ANGACC_FF
+//#define ANGACC_FF
+#define MANI_COM_COMP
 
 class MulticopterAttitudeControl
 {
@@ -150,6 +153,7 @@ private:
 	int 	_motor_limits_sub;		/**< motor limits subscription */
 	int 	_battery_status_sub;	/**< battery status subscription */
 	int 	_angacc_acc_sub;
+	int 	_mani_com_sub;
 
 	orb_advert_t	_v_rates_sp_pub;		/**< rate setpoint publication */
 	orb_advert_t	_actuators_0_pub;		/**< attitude actuator controls publication */
@@ -175,6 +179,8 @@ private:
 	struct battery_status_s				_battery_status;	/**< battery status */
 	struct angacc_acc_s					_angacc_acc;
 	struct angacc_ff_s					_angacc_ff;
+
+	struct mani_com_s 					_mani_com;
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
 	perf_counter_t	_controller_latency_perf;
@@ -234,6 +240,7 @@ private:
 		param_t ff_max_horizon;
 		param_t ff_max_vertical;
 		param_t ff_inertial_gain;
+		param_t mani_com_gain;
 	}		_params_handles;		/**< handles for interesting parameters */
 
 	struct {
@@ -248,6 +255,7 @@ private:
 		float ff_max_vertical;
 		float ff_inertial_gain;
 		float yaw_ff;						/**< yaw control feed-forward */
+		float mani_com_gain;
 
 		float tpa_breakpoint;				/**< Throttle PID Attenuation breakpoint */
 		float tpa_slope;					/**< Throttle PID Attenuation slope */
@@ -330,6 +338,8 @@ private:
 	void		battery_status_poll();
 
 	bool		angacc_acc_poll();
+
+	bool        mani_com_poll();
 	/**
 	 * Shim for calling task_main from task_create.
 	 */
@@ -361,6 +371,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_armed_sub(-1),
 	_vehicle_status_sub(-1),
 	_angacc_acc_sub(-1),
+	_mani_com_sub(-1),
 
 	/* publications */
 	_v_rates_sp_pub(nullptr),
@@ -391,6 +402,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	memset(&_controller_status, 0, sizeof(_controller_status));
 	memset(&_angacc_acc, 0, sizeof(_angacc_acc));
 	memset(&_angacc_ff, 0, sizeof(_angacc_ff));
+	memset(&_mani_com, 0, sizeof(_mani_com));
 
 	_vehicle_status.is_rotary_wing = true;
 
@@ -402,6 +414,8 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params.inertial.zero();
 	_params.ff_angacc_a = 0.0f;
 	_params.yaw_ff = 0.0f;
+	_params.mani_com_gain=0.0f;
+
 	_params.roll_rate_max = 0.0f;
 	_params.pitch_rate_max = 0.0f;
 	_params.yaw_rate_max = 0.0f;
@@ -464,7 +478,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params_handles.ff_angacc_a		=	param_find("MC_FFT_ANGACC");
 	_params_handles.ff_inertial_gain=	param_find("MC_FFT_GAIN");
 
-
+	_params_handles.mani_com_gain   =   param_find("MC_MANCOM_GAIN");
 
 	/* fetch initial parameter values */
 	parameters_update();
@@ -607,6 +621,7 @@ MulticopterAttitudeControl::parameters_update()
 	param_get(_params_handles.ff_max_horizon, &_params.ff_max_horizon);
 	param_get(_params_handles.ff_max_vertical, &_params.ff_max_vertical);
 	param_get(_params_handles.ff_inertial_gain, &_params.ff_inertial_gain);
+	param_get(_params_handles.mani_com_gain, &_params.mani_com_gain);
 	return OK;
 }
 
@@ -744,6 +759,19 @@ MulticopterAttitudeControl::angacc_acc_poll()
 
 	if (updated) {
 		orb_copy(ORB_ID(angacc_acc), _angacc_acc_sub, &_angacc_acc);
+	}
+	return updated;
+}
+
+bool
+MulticopterAttitudeControl::mani_com_poll()
+{
+	/* check if there is a new message */
+	bool updated = false;
+	orb_check(_mani_com_sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(mani_com), _mani_com_sub, &_mani_com);
 	}
 	return updated;
 }
@@ -956,6 +984,76 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	}
 
 #endif
+
+#ifdef MANI_COM_COMP
+	{
+		bool saturation_xy = false;
+		bool saturation_z = false;
+		static bool mani_com_flag = false;
+		static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
+		if (_manual_control_sp.aux2 > 0.6f) {
+//		if (1) {
+			hrt_abstime timeNow = hrt_absolute_time();
+			static hrt_abstime pretimeStamp = timeNow;
+			bool updated = mani_com_poll();
+			if (updated) {
+				if (mani_com_flag == false) {	// first time in acc feed back mode
+					ff_value.zero();
+					pretimeStamp = timeNow;
+					mani_com_flag = true;
+					mavlink_log_critical(&_mavlink_log_pub,"AngAcc FF Started!");
+				}
+
+				float dt_ang_ff = (timeNow - pretimeStamp) * 1e-6f;
+//				PX4_INFO("dt_ang_ff %8.4f", (double)dt_ang_ff);
+				pretimeStamp = timeNow;
+				math::Vector<3> angacc(_angacc_acc.ang_acc_x, _angacc_acc.ang_acc_y, _angacc_acc.ang_acc_z);
+
+				math::Vector<3> thrust_offset(0.002f, -0.0045f, -0.02f);
+				math::Vector<3> ff_delta =  (pre_torque_sp - thrust_offset - _params.inertial * angacc * _params.ff_inertial_gain) * (_params.ff_angacc_a * dt_ang_ff);
+				// results in FMU busy
+//				mavlink_and_console_log_info(&_mavlink_log_pub, "torque_sp:%8.4f, %8.4f, %8.4f",(double)(pre_torque_sp - thrust_offset)(0),
+//						(double)(pre_torque_sp - thrust_offset)(1),(double)(pre_torque_sp - thrust_offset)(2));
+
+				math::Vector<3> ff_value_temp = ff_value + ff_delta;
+				float ff_value_temp_norm = sqrtf(ff_value_temp(0) * ff_value_temp(0) + ff_value_temp(1) * ff_value_temp(1));
+				if ( ff_value_temp_norm > _params.ff_max_horizon) {
+					ff_value_temp(0) = ff_value_temp(0) / ff_value_temp_norm * _params.ff_max_horizon;
+					ff_value_temp(1) = ff_value_temp(1) / ff_value_temp_norm * _params.ff_max_horizon;
+					saturation_xy = true;
+				}
+				if (fabsf(ff_value_temp(2)) > _params.ff_max_vertical) {
+					ff_value_temp(2) = ff_value_temp(2) / fabsf(ff_value_temp(2)) *_params.ff_max_vertical;
+					saturation_z = true;
+				}
+				ff_value = ff_value_temp;
+//				mavlink_and_console_log_info(&_mavlink_log_pub, "ff_value:%8.4f, %8.4f, %8.4f",(double)ff_value(0),
+//						(double)ff_value(1),(double)ff_value(2));
+			}
+		} else {
+			angacc_ff_flag = false;
+			ff_value.zero();
+		}
+
+		_att_control += ff_value;
+
+		_angacc_ff.angacc_ff[0] = ff_value(0);
+		_angacc_ff.angacc_ff[1] = ff_value(1);
+		_angacc_ff.angacc_ff[2] = ff_value(2);
+
+//		PX4_INFO("ff_ang: %8.4f,%8.4f,%8.4f", (double)ff_value(0), (double)ff_value(1),(double)ff_value(2));
+
+
+		_angacc_ff.saturation = saturation_xy | (saturation_z << 1);
+
+		if (_angacc_ff_pub == nullptr) {
+			_angacc_ff_pub = orb_advertise(ORB_ID(angacc_ff), &_angacc_ff);
+		} else {
+			orb_publish(ORB_ID(angacc_ff), _angacc_ff_pub, &_angacc_ff);
+		}
+	}
+
+#endif
 	_rates_sp_prev = _rates_sp;
 	_rates_prev = rates;
 
@@ -1000,6 +1098,7 @@ MulticopterAttitudeControl::task_main()
 	_motor_limits_sub = orb_subscribe(ORB_ID(multirotor_motor_limits));
 	_battery_status_sub = orb_subscribe(ORB_ID(battery_status));
 	_angacc_acc_sub = orb_subscribe(ORB_ID(angacc_acc));
+	_mani_com_sub = orb_subscribe(ORB_ID(mani_com));
 
 	/* initialize parameters cache */
 	parameters_update();

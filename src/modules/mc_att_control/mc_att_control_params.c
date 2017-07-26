@@ -489,3 +489,14 @@ PARAM_DEFINE_FLOAT(MC_FFT_MAX_V, 0.1f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_FFT_GAIN, 0.1f);
+
+/**
+ *  Gain of manipulaotr_com_compensation
+ *
+ * @min 0.0
+ * @max 1
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_MANCOM_GAIN, 0.1f);
+
