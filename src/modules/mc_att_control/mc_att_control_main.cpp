@@ -993,29 +993,24 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		static math::Vector<3> ff_value(0.0f,0.0f,0.0f);
 		if (_manual_control_sp.aux2 > 0.6f) {
 //		if (1) {
-			hrt_abstime timeNow = hrt_absolute_time();
-			static hrt_abstime pretimeStamp = timeNow;
 			bool updated = mani_com_poll();
 			if (updated) {
 				if (mani_com_flag == false) {	// first time in acc feed back mode
 					ff_value.zero();
-					pretimeStamp = timeNow;
 					mani_com_flag = true;
-					mavlink_log_critical(&_mavlink_log_pub,"AngAcc FF Started!");
+					mavlink_log_critical(&_mavlink_log_pub,"Mani_CoM compensate Started!");
 				}
 
-				float dt_ang_ff = (timeNow - pretimeStamp) * 1e-6f;
-//				PX4_INFO("dt_ang_ff %8.4f", (double)dt_ang_ff);
-				pretimeStamp = timeNow;
-				math::Vector<3> angacc(_angacc_acc.ang_acc_x, _angacc_acc.ang_acc_y, _angacc_acc.ang_acc_z);
-
+				math::Vector<3> com_pos(_mani_com.x, _mani_com.y,_mani_com.z );
+				math::Vector<3> thrust_sp_vector( 0.0f,0.0f,-_v_att_sp.thrust);
 				math::Vector<3> thrust_offset(0.002f, -0.0045f, -0.02f);
-				math::Vector<3> ff_delta =  (pre_torque_sp - thrust_offset - _params.inertial * angacc * _params.ff_inertial_gain) * (_params.ff_angacc_a * dt_ang_ff);
+//				math::Vector<3> ff_delta =  (pre_torque_sp - thrust_offset - _params.inertial * angacc * _params.ff_inertial_gain) * (_params.ff_angacc_a * dt_ang_ff);
 				// results in FMU busy
 //				mavlink_and_console_log_info(&_mavlink_log_pub, "torque_sp:%8.4f, %8.4f, %8.4f",(double)(pre_torque_sp - thrust_offset)(0),
 //						(double)(pre_torque_sp - thrust_offset)(1),(double)(pre_torque_sp - thrust_offset)(2));
 
-				math::Vector<3> ff_value_temp = ff_value + ff_delta;
+				math::Vector<3> ff_delta = (com_pos%thrust_sp_vector)*_params.mani_com_gain;
+				math::Vector<3> ff_value_temp = ff_value +ff_delta;
 				float ff_value_temp_norm = sqrtf(ff_value_temp(0) * ff_value_temp(0) + ff_value_temp(1) * ff_value_temp(1));
 				if ( ff_value_temp_norm > _params.ff_max_horizon) {
 					ff_value_temp(0) = ff_value_temp(0) / ff_value_temp_norm * _params.ff_max_horizon;
@@ -1031,7 +1026,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 //						(double)ff_value(1),(double)ff_value(2));
 			}
 		} else {
-			angacc_ff_flag = false;
+			mani_com_flag = false;
 			ff_value.zero();
 		}
 

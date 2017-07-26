@@ -105,10 +105,10 @@ ManipulatorCoMEst::ManipulatorCoMEst() :
 {
 	memset(&_manipulator_joint_status, 0, sizeof(_manipulator_joint_status));
 	memset(&_mani_com, 0, sizeof(_mani_com));
-	mani_DH.d[0] = 0.167f;
+	mani_DH.d[0] = 0.152f;
 	mani_DH.d[1] = 0.0f;
 	mani_DH.a[0] = 0.0f;
-	mani_DH.a[1] = 0.0375f;
+	mani_DH.a[1] = 0.375f;
 	mani_DH.offset[0] = 0.0f;
 	mani_DH.offset[1] = (float) M_PI / 2.0f;
 	mani_DH.alpha[0] = (float) M_PI / 2.0f;
@@ -182,7 +182,7 @@ ManipulatorCoMEst::ManipulatorCoMEst() :
 	mani_iner.Ic2(2, 1) = -.0f;
 	mani_iner.Ic2(2, 2) = 0.0028f;
 
-	rb0 = Vector3f(0.0f,0.0f,0.6f);
+	rb0 = Vector3f(0.0f,0.0f,0.04f);
 
 }
 ManipulatorCoMEst::~ManipulatorCoMEst() {
@@ -252,7 +252,7 @@ void ManipulatorCoMEst::com_estimator(){
 	   Vector3f rc2_B = ext_translvector(Trc2_B);
 
 //	    system CoG in body coordinate
-	   float m_sys = (mani_iner.mlink0+mani_iner.mlink1+mani_iner.mlink2+mani_iner.mb);
+	    static float m_sys = (mani_iner.mlink0+mani_iner.mlink1+mani_iner.mlink2+mani_iner.mb);
 	   Vector3f rc_B = (mani_iner.mlink0*rc0_B+ mani_iner.mlink1*rc1_B+mani_iner.mlink2*rc2_B)/m_sys;
 	   _mani_com.x = rc_B(0);
 	   _mani_com.y = rc_B(1);
