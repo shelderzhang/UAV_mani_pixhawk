@@ -66,6 +66,7 @@ private:
 
 	int _sub_manipulator_joint_status;
 	orb_advert_t _pub_mani_com;
+	orb_advert_t	_mavlink_log_pub;		/**< mavlink log advert */
 
 	struct manipulator_joint_status_s _manipulator_joint_status;
 	struct mani_com_s _mani_com;
@@ -100,7 +101,8 @@ ManipulatorCoMEst::ManipulatorCoMEst() :
 		_sub_manipulator_joint_status(-1),
 
 		/* publications */
-		_pub_mani_com(nullptr)
+		_pub_mani_com(nullptr),
+      _mavlink_log_pub(nullptr)
 
 {
 	memset(&_manipulator_joint_status, 0, sizeof(_manipulator_joint_status));
@@ -120,7 +122,7 @@ ManipulatorCoMEst::ManipulatorCoMEst() :
 	mani_iner.mlink2 = 0.3220f;
 	mani_iner.rc0 = Vector3f(-0.0016f, -7.8226e-6f, 0.0496f);
 	mani_iner.rc1 = Vector3f(-0.0015f, -0.0124f, 0.009f);
-	mani_iner.rc2 = Vector3f(-0.99f, 0.0f, 0.0f);
+	mani_iner.rc2 = Vector3f(-0.199f, 0.0f, 0.0f);
 
 	/*
 	 * 	>> mdl_arm.link0_Jc
@@ -295,8 +297,12 @@ void ManipulatorCoMEst::task_main() {
 			usleep(100000);
 			continue;
 		}
-
+		static bool mani_com_est_flag = false;
 		if (fds[0].revents & POLLIN) {
+			if (mani_com_est_flag == false) {	// first time in acc feed back mode
+				mani_com_est_flag = true;
+				mavlink_log_critical(&_mavlink_log_pub,"Manipulator com estimator Started!");
+			}
 			orb_copy(ORB_ID(manipulator_joint_status), _sub_manipulator_joint_status, &_manipulator_joint_status);
 
 			com_estimator();
@@ -307,13 +313,13 @@ void ManipulatorCoMEst::task_main() {
 				orb_publish(ORB_ID(mani_com), _pub_mani_com, &_mani_com);
 			}
 
-			 PX4_INFO("mani_com_est: %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f",
-			         (double)_mani_com.x,
-			         (double)_mani_com.y,
-			         (double)_mani_com.z,
-			         (double)_mani_com.vx,
-			         (double)_mani_com.vy,
-			         (double)_mani_com.vz );
+//			 PX4_INFO("mani_com_est: %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f",
+//			         (double)_mani_com.x,
+//			         (double)_mani_com.y,
+//			         (double)_mani_com.z,
+//			         (double)_mani_com.vx,
+//			         (double)_mani_com.vy,
+//			         (double)_mani_com.vz );
 		}
 	}
 
