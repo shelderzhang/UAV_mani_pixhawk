@@ -15,7 +15,7 @@
 static float GRAPPER_ANGLE_RANGE[2] = {-5.0f / 180.0f * (float)M_PI, 5.0f / 180.0f * (float)M_PI};
 
 /*mani range of the manipulator in the body frame*/
-static float MANI_RANGE[6] = {0.35f, 0.46f, //R: radius of the mani range
+static float MANI_RANGE[6] = {0.35f, 0.50f, //R: radius of the mani range
 		-45.0f / 180.0f * (float)M_PI, -5.0f / 180.0f * (float)M_PI, // THETA: the angle between x-o-y and the target vector
 		-35.0f / 180.0f * (float)M_PI, 35.0f / 180.0f * (float)M_PI};//PSI: the angle between x-o-z and the target vector
 static float TRIGGER_RANGE = 0.6f;
@@ -280,6 +280,7 @@ void BlockManipulatorControl::control()
 
 		//grab success
 		if (_mani_status_sub.get().gripper_status == -1) {
+
 			_manip_pub.get().z = _manip_pub.get().z - 0.15f;
 			if (_manip_pub.get().z < 0.04f) {
 				_manip_pub.get().z = 0.04f;

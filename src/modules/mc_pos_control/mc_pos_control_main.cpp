@@ -78,6 +78,8 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/angacc_acc.h>
 #include <uORB/topics/acc_ff.h>
+#include <uORB/topics/coupling_force.h>
+
 
 #include <uORB/topics/battery_status.h>
 
@@ -114,8 +116,8 @@ static float ELEC_FENCE[3][2] = {-2.5f, 2.5f, -2.5f, 2.5f, -0.45f -2.0f};
 static bool OUT_FENCE = false;
 /*follow mode means use velocity feed-forward control -bdai<12 Nov 2016>*/
 static bool FOLLOW_MODE = true;
-static float pos_sp_condition[4] = { 0.43f, 0.02f,
-		30.0f * DEG2RAD, 45.0f * DEG2RAD};
+static float pos_sp_condition[4] = { 0.45f, 0.02f,
+		24.0f * DEG2RAD, 30.0f * DEG2RAD};
 enum {R_max = 0, R_min, ANGLE_MIN, ANGLE_MAX};
 enum {MIN = 0, MAX};
 static orb_advert_t mavlink_log_pub = nullptr;
@@ -642,7 +644,7 @@ private:
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
 	orb_advert_t	_acc_ff_pub;		// angular acceleration and acceleration feedforwad --bdai
-
+	orb_advert_t coup_force_pub;
 	orb_id_t _attitude_setpoint_id;
 
 	struct vehicle_status_s 			_vehicle_status; 	/**< vehicle status */
@@ -659,6 +661,8 @@ private:
 	struct angacc_acc_s			_angacc_acc;
 	struct acc_ff_s				_acc_ff;
 	struct target_info_s	_target;
+
+	struct coupling_force_s coup_force;
 
 
 	struct battery_status_s		_battery_status;
@@ -917,6 +921,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_local_pos_sp_pub(nullptr),
 	_global_vel_sp_pub(nullptr),
 	_acc_ff_pub(nullptr),
+	coup_force_pub(nullptr),
 	_attitude_setpoint_id(0),
 	_vehicle_status{},
 	_vehicle_land_detected{},
@@ -2875,7 +2880,7 @@ MulticopterPositionControl::task_main()
 							pretimeStamp = timeNow;
 							math::Vector<3> acc(_angacc_acc.acc_x, _angacc_acc.acc_y, _angacc_acc.acc_z - 9.806f);
 
-							float hovering_thrust = -0.02875f * _battery_status.voltage_filtered_v + 1.3509f;
+							float hovering_thrust = -0.0263f * _battery_status.voltage_filtered_v + 1.315f;
 							math::Vector<3> ff_delta =  (_pre_thrust_sp - acc*(hovering_thrust / 9.806f)) * (_acc_ff_a.get() * dt_acc_ff);
 							ff_delta(2) = ff_delta(2) / _acc_ff_a.get() * 2.0f;
 //							mavlink_log_critical(&_mavlink_log_pub, "ff_delta:%8.4f, %8.4f, %8.4f",(double)ff_delta(0),
@@ -3003,7 +3008,17 @@ MulticopterPositionControl::task_main()
 					} else {
 						orb_publish(ORB_ID(acc_ff), _acc_ff_pub, &_acc_ff);
 					}
+
 #endif
+					coup_force.force_x=thrust_sp(0);
+					coup_force.force_y=thrust_sp(1);
+					coup_force.force_z=thrust_sp(2);
+
+					if (coup_force_pub == nullptr) {
+						coup_force_pub = orb_advertise(ORB_ID(coupling_force), &coup_force);
+					} else {
+						orb_publish(ORB_ID(coupling_force), coup_force_pub, &coup_force);
+					}
 
 					/* calculate attitude setpoint from thrust vector */
 					if (_control_mode.flag_control_velocity_enabled || _control_mode.flag_control_acceleration_enabled) {
