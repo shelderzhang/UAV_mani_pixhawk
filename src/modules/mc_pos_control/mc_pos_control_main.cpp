@@ -1482,7 +1482,7 @@ MulticopterPositionControl::control_manual(float dt)
 		static float path_over_time = 0.0f;
 		static status last_statu = statu;
 		last_statu = statu;
-		if (_manual.aux3 < -0.5f) {
+		if (true/*_manual.aux3 < -0.5f*/) {
 			path_over_time = path_time = 0.0f;
 			last_pause_stamp = now;
 			statu = DISABLE;

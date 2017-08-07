@@ -50,24 +50,10 @@ land_detector start multicopter
 
 
 #-----custome-gyzhang-----
-
-angacc_acc_ekf start
-#manipulator_control start
+#mavlink_msg_send_test start
 manipulator_com_est start
 
-#coupling_force_app start
-
-#mavlink_msg_send_test start
-
-
-
-
 mavlink start -d /dev/ttyS6 -b 57600 -m custom
-
-
 mavlink start -d /dev/ttyS2 -b 57600 -m custom
-
-
-#mavlink start -d /dev/ttyS3 -b 115200 -m custom
-
+#angacc_acc_ekf start
 

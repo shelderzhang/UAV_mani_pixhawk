@@ -983,6 +983,8 @@ void BlockLocalPositionEstimator::predict()
 	k4 = dynamics(h, _x + k3 * h, _u);
 	Vector<float, n_x> dx = (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
 
+	_xLowPass.update(_x);
+	_aglLowPass.update(agl());
 	// propagate
 	correctionLogic(dx);
 	_x += dx;
@@ -991,8 +993,8 @@ void BlockLocalPositionEstimator::predict()
 	covPropagationLogic(dP);
 	_P += dP;
 
-	_xLowPass.update(_x);
-	_aglLowPass.update(agl());
+//	_xLowPass.update(_x);
+//	_aglLowPass.update(agl());
 }
 
 int BlockLocalPositionEstimator::getDelayPeriods(float delay, uint8_t *periods)

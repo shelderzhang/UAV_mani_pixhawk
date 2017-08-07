@@ -86,7 +86,7 @@
 #include <uORB/topics/target_endeff_frame.h>
 #include <uORB/topics/endeff_frame_status.h>
 #include <uORB/topics/target_info.h>
-#include <uORB/topics/att_pos_vel_mocap.h>
+
 
 #include "mavlink_ftp.h"
 
