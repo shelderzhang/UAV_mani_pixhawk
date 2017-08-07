@@ -5,6 +5,8 @@
         "array": "cpp",
         "future": "cpp",
         "tuple": "cpp",
-        "iterator": "cpp"
+        "iterator": "cpp",
+        "functional": "cpp",
+        "utility": "cpp"
     }
 }

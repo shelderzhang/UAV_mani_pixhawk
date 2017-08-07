@@ -1576,6 +1576,9 @@ MulticopterPositionControl::control_manual(float dt)
 	//		_pos_sp = _pos;
 		}
 
+		static math::Vector<3> grasp_vector(0.3681f,0.0282f,0.4639f);
+		_pos_sp = math::Vector<3>(target_pos(0),target_pos(1),target_pos(2))-grasp_vector;
+
 		for (int i = 0; i < 3; i++){
 			if (_pos_sp(i) < ELEC_FENCE[i][MIN]){
 				_pos_sp(i) = ELEC_FENCE[i][MIN];
