@@ -498,5 +498,5 @@ PARAM_DEFINE_FLOAT(MC_FFT_GAIN, 0.1f);
  * @decimal 3
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_MANCOM_GAIN, 0.1f);
+PARAM_DEFINE_FLOAT(MC_MANCOM_GAIN, 1f);
 

@@ -123,7 +123,7 @@ ManipulatorCoMEst::ManipulatorCoMEst() :
 	mani_iner.rc0 = Vector3f(-0.0016f, -7.8226e-6f, 0.0496f);
 	mani_iner.rc1 = Vector3f(-0.0015f, -0.0124f, 0.009f);
 	//mani_iner.rc2 = Vector3f(-0.199f, 0.0f, 0.0f);
-	mani_iner.rc2 = Vector3f(-0.10f, 0.0f, 0.0f);
+	mani_iner.rc2 = Vector3f(-0.549f, 0.0f, 0.0f);
 
 	/*
 	 * 	>> mdl_arm.link0_Jc
@@ -179,11 +179,11 @@ ManipulatorCoMEst::ManipulatorCoMEst() :
 	mani_iner.Ic2(0, 1) = 0.0f;
 	mani_iner.Ic2(0, 2) = 0.0f;
 	mani_iner.Ic2(1, 0) = 0.0f;
-	mani_iner.Ic2(1, 1) = .0037f;
+	mani_iner.Ic2(1, 1) = .0064f;
 	mani_iner.Ic2(1, 2) = -.0f;
 	mani_iner.Ic2(2, 0) = 0.0f;
 	mani_iner.Ic2(2, 1) = -.0f;
-	mani_iner.Ic2(2, 2) = 0.0028f;
+	mani_iner.Ic2(2, 2) = 0.0055f;
 
 	rb0 = Vector3f(0.0f,0.0f,0.04f);
 
