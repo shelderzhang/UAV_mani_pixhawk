@@ -1003,14 +1003,15 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 
 				math::Vector<3> com_pos(_mani_com.x, _mani_com.y,_mani_com.z );
 				math::Vector<3> thrust_sp_vector( 0.0f,0.0f,-_v_att_sp.thrust);
-				math::Vector<3> thrust_offset(0.002f, -0.0045f, -0.02f);
+				math::Vector<3> thrust_offset(0.003f, 0.055f, 0.055f);
 //				math::Vector<3> ff_delta =  (pre_torque_sp - thrust_offset - _params.inertial * angacc * _params.ff_inertial_gain) * (_params.ff_angacc_a * dt_ang_ff);
 				// results in FMU busy
 //				mavlink_and_console_log_info(&_mavlink_log_pub, "torque_sp:%8.4f, %8.4f, %8.4f",(double)(pre_torque_sp - thrust_offset)(0),
 //						(double)(pre_torque_sp - thrust_offset)(1),(double)(pre_torque_sp - thrust_offset)(2));
 
 				math::Vector<3> ff_delta = (com_pos%thrust_sp_vector)*_params.mani_com_gain;
-				math::Vector<3> ff_value_temp = ff_value +ff_delta;
+//				math::Vector<3> ff_value_temp = ff_value +ff_delta;
+				math::Vector<3> ff_value_temp = ff_delta;
 				float ff_value_temp_norm = sqrtf(ff_value_temp(0) * ff_value_temp(0) + ff_value_temp(1) * ff_value_temp(1));
 				if ( ff_value_temp_norm > _params.ff_max_horizon) {
 					ff_value_temp(0) = ff_value_temp(0) / ff_value_temp_norm * _params.ff_max_horizon;

@@ -122,7 +122,8 @@ ManipulatorCoMEst::ManipulatorCoMEst() :
 	mani_iner.mlink2 = 0.3220f;
 	mani_iner.rc0 = Vector3f(-0.0016f, -7.8226e-6f, 0.0496f);
 	mani_iner.rc1 = Vector3f(-0.0015f, -0.0124f, 0.009f);
-	mani_iner.rc2 = Vector3f(-0.199f, 0.0f, 0.0f);
+	//mani_iner.rc2 = Vector3f(-0.199f, 0.0f, 0.0f);
+	mani_iner.rc2 = Vector3f(-0.10f, 0.0f, 0.0f);
 
 	/*
 	 * 	>> mdl_arm.link0_Jc
