@@ -58,3 +58,5 @@ mavlink start -d /dev/ttyS6 -b 57600 -m custom
 mavlink start -d /dev/ttyS2 -b 57600 -m custom
 
 
+
+
