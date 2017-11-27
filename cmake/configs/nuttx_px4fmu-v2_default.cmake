@@ -119,9 +119,10 @@ set(config_module_list
 	
 	#
 	# custome
-	#
+	#gyzhang
 	modules/heli_msg
-
+    modules/mavlink_msg_receive_test
+    modules/mavlink_msg_send_test
 	#
 	# Library modules
 	#
