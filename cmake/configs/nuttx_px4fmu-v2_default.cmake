@@ -115,6 +115,12 @@ set(config_module_list
 	#
 	#modules/logger
 	modules/sdlog2
+	
+	
+	#
+	# custome
+	#
+	modules/heli_msg
 
 	#
 	# Library modules
