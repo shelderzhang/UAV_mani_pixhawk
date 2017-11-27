@@ -111,6 +111,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
+#include <uORB/topics/targ_heli.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1222,6 +1223,9 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_land_detected_s land_detected;
 		struct cpuload_s cpuload;
 		struct vehicle_gps_position_s dual_gps_pos;
+		//gyzhang
+		struct targ_heli_s targ_heli;
+
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1284,6 +1288,9 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_RPL6_s log_RPL6;
 			struct log_LOAD_s log_LOAD;
 			struct log_DPRS_s log_DPRS;
+			//gyzhang
+			struct log_TARG_s log_TARG;
+
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1334,6 +1341,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int commander_state_sub;
 		int cpuload_sub;
 		int diff_pres_sub;
+		//gyzhang
+		int targ_heli_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1379,7 +1388,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.diff_pres_sub = -1;
 
 	/* add new topics HERE */
-
+	//gyzhang
+	subs.targ_heli_sub=-1;
 
 	for (unsigned i = 0; i < ORB_MULTI_MAX_INSTANCES; i++) {
 		subs.telemetry_subs[i] = -1;
@@ -2321,6 +2331,22 @@ int sdlog2_thread_main(int argc, char *argv[])
 			LOGBUFFER_WRITE_AND_COUNT(LOAD);
 
 		}
+		/* ---HELICOPTER TARGET----*/
+		//gyzhang
+
+		if (copy_if_updated(ORB_ID(targ_heli), &subs.targ_heli_sub, &buf.targ_heli)) {
+					log_msg.msg_type = LOG_TARG_MSG;
+					log_msg.body.log_TARG.lon = buf.targ_heli.lon;
+					log_msg.body.log_TARG.lat = buf.targ_heli.lat;
+					log_msg.body.log_TARG.alt = buf.targ_heli.alt;
+					log_msg.body.log_TARG.vn = buf.targ_heli.vel_n;
+					log_msg.body.log_TARG.ve = buf.targ_heli.vel_e;
+					log_msg.body.log_TARG.vd = buf.targ_heli.vel_d;
+					log_msg.body.log_TARG.yaw = buf.targ_heli.yaw;
+
+					LOGBUFFER_WRITE_AND_COUNT(TARG);
+
+				}
 
 		pthread_mutex_lock(&logbuffer_mutex);
 

@@ -634,6 +634,16 @@ struct log_DPRS_s {
 	float temperature;
 };
 
+#define LOG_TARG_MSG 80
+struct log_TARG_s {
+	float lon;
+	float lat;
+	float alt;
+	float vn;
+	float ve;
+	float vd;
+	float yaw;
+};
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -724,6 +734,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
 	LOG_FORMAT(DPRS, "Qffff", "errors,DPRESraw,DPRES,DPRESmax,Temp"),
+	LOG_FORMAT(TARG, "fffffff", "lon,lat,alt,vn,ve,vd,yaw"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),
