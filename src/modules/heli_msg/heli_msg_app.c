@@ -225,7 +225,7 @@ int heli_msg_app_thread_main(int argc, char *argv[])
     int uart_read = uart_init("/dev/ttyS6");
 
     if(false == uart_read)return -1;
-    if(false == set_uart_baudrate(uart_read,97600))
+    if(false == set_uart_baudrate(uart_read,57600))
     {
         printf("[YCM]set_uart_baudrate is failed\n");
         return -1;
@@ -241,7 +241,7 @@ int heli_msg_app_thread_main(int argc, char *argv[])
 
         read(uart_read,&byte_data,1);
         in_buffer[index] = byte_data;
-        printf("in_buff index: %d    :%x\n",index,byte_data);
+        printf("index: %d   byte_data:ox%x\n",index,byte_data);
         if ((index == 0)&&(in_buffer[index] == 0xAA))
         		index =1;
         else if ((index == 1)&&(in_buffer[index] == 0x55))
