@@ -225,7 +225,7 @@ int heli_msg_app_thread_main(int argc, char *argv[])
     int uart_read = uart_init("/dev/ttyS6");
 
     if(false == uart_read)return -1;
-    if(false == set_uart_baudrate(uart_read,57600))
+    if(false == set_uart_baudrate(uart_read,115200))
     {
         printf("[YCM]set_uart_baudrate is failed\n");
         return -1;
@@ -241,10 +241,10 @@ int heli_msg_app_thread_main(int argc, char *argv[])
 
         read(uart_read,&byte_data,1);
         in_buffer[index] = byte_data;
-        printf("index: %d   byte_data:ox%x\n",index,byte_data);
-        if ((index == 0)&&(in_buffer[index] == 0xAA))
+//        printf("index: %d   byte_data:ox%x\n",index,byte_data);
+        if ((index == 0)&&(in_buffer[index] == 0x55))
         		index =1;
-        else if ((index == 1)&&(in_buffer[index] == 0x55))
+        else if ((index == 1)&&(in_buffer[index] == 0xAA))
 		        index =2;
         else if ((index >=2)&&(index <32))
 		        index++;
@@ -252,10 +252,13 @@ int heli_msg_app_thread_main(int argc, char *argv[])
         {
         	index = 0;
         	check_byte = 0;
-        	for (int i = 1;i<=29; i++){
+        	for (int i = 2;i<=28; i++){
         		check_byte = in_buffer[i]+check_byte;
+//        		printf("check_byte_check_byte= ox%x\n",check_byte);
         	}
         	if (check_byte==in_buffer[30]){
+        		// printf("Check Data Success!!!!!!\n");
+
         		memcpy(&(lon),in_buffer+2,4);
         		memcpy(&(lat),in_buffer+6,4);
         		heli_stat.lon = lon/10.0e7;
@@ -264,7 +267,7 @@ int heli_msg_app_thread_main(int argc, char *argv[])
         		memcpy(&(heli_stat.vel_n),in_buffer+14,4);
         		memcpy(&(heli_stat.vel_e),in_buffer+18,4);
         		memcpy(&(heli_stat.vel_d),in_buffer+22,4);
-        		memcpy(&(heli_stat.yaw),in_buffer+6,4);
+        		memcpy(&(heli_stat.yaw),in_buffer+26,4);
 
 
         	orb_publish(ORB_ID(targ_heli),heli_stat_pub_fd, &heli_stat);
