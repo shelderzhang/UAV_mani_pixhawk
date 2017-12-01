@@ -1,0 +1,42 @@
+
+{
+    "version": "2.0.0",
+
+    "tasks": [
+        {
+            
+            "label": "px4 clean",
+            "type": "shell",
+            "command": "make clean",
+            "group": "build",
+            "presentation": {
+            "reveal": "always",
+            "panel": "new"
+            }
+        },
+        {
+            
+            "label": "px4 build",
+            "type": "shell",
+            "command": "make px4fmu-v2_default",
+            "group": "build",
+            "presentation": {
+            "reveal": "always",
+            "panel": "new"
+            }
+        },
+        {
+   
+            "label": "px4 upload",
+            "type": "shell",
+            "command": "make px4fmu-v2_default upload",
+            "group": "build",
+            "presentation": {
+             "reveal": "always",
+             "panel": "new"
+            }
+        }
+
+    ]
+}
+
